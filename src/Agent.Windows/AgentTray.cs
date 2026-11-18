@@ -1,0 +1,51 @@
+using System.Diagnostics;
+
+namespace RepoDlp.Agent.Windows;
+
+internal sealed class AgentTray : ApplicationContext
+{
+    private readonly ContextMenuStrip menu = new();
+    private readonly NotifyIcon icon;
+    private readonly Uri address;
+
+    public AgentTray(Uri address)
+    {
+        this.address = address;
+        menu.Items.Add("Mở trang quản lý", null, (_, _) => OpenDashboard());
+        menu.Items.Add("Thoát agent", null, (_, _) => ExitThread());
+        icon = new NotifyIcon
+        {
+            Icon = System.Drawing.SystemIcons.Shield,
+            Text = "Repo DLP",
+            ContextMenuStrip = menu,
+            Visible = true
+        };
+        icon.DoubleClick += (_, _) => OpenDashboard();
+    }
+
+    private void OpenDashboard()
+    {
+        try
+        {
+            using var browser = Process.Start(new ProcessStartInfo(address.AbsoluteUri)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show($"Mở đường dẫn {address} trong trình duyệt.\n{error.Message}", "Repo DLP");
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            icon.Visible = false;
+            icon.Dispose();
+            menu.Dispose();
+        }
+        base.Dispose(disposing);
+    }
+}

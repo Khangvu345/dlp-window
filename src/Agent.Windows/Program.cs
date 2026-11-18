@@ -1,0 +1,37 @@
+using RepoDlp.Web;
+
+namespace RepoDlp.Agent.Windows;
+
+internal static class Program
+{
+    [STAThread]
+    private static void Main()
+    {
+        using var instance = new Mutex(true, @"Local\RepoDlp.Agent.Windows", out bool firstInstance);
+        if (!firstInstance)
+        {
+            MessageBox.Show("Repo DLP đang chạy. Hãy mở biểu tượng ở khay hệ thống.", "Repo DLP");
+            return;
+        }
+
+        ApplicationConfiguration.Initialize();
+        try
+        {
+            var dashboard = LocalDashboard.StartAsync().GetAwaiter().GetResult();
+            try
+            {
+                using var tray = new AgentTray(dashboard.Address);
+                Application.Run(tray);
+            }
+            finally
+            {
+                dashboard.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show(error.Message, "Lỗi Repo DLP", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            Environment.ExitCode = 1;
+        }
+    }
+}

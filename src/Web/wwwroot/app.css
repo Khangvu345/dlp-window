@@ -1,0 +1,14 @@
+:root { color-scheme: light; font: 1rem/1.55 Inter, "Segoe UI", sans-serif; color: #182e35; background: #f1f5f4; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 40rem; margin: clamp(2rem, 10vh, 7rem) auto; padding: clamp(1.4rem, 5vw, 3.5rem); background: white; border-top: 4px solid #00705e; }
+header { display: flex; align-items: center; gap: .65rem; font-weight: 700; }
+.mark { background: #006556; color: white; padding: .15rem .6rem; border-radius: .3rem; }
+h1 { margin: 2rem 0 0; font-size: clamp(2rem, 6vw, 3rem); line-height: 1.1; }
+p, dt { color: #4e6268; }
+dl { margin: 1.75rem 0; }
+dl div { border-top: 1px solid #d9e2e0; padding: .75rem 0; display: flex; gap: 1rem; justify-content: space-between; flex-wrap: wrap; }
+dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+button { font: inherit; font-weight: 600; color: white; background: #006556; border: 0; border-radius: .3rem; padding: .55rem 1rem; cursor: pointer; }
+button:focus-visible { outline: 3px solid #de9a29; outline-offset: 3px; }
+button:disabled { opacity: .65; }

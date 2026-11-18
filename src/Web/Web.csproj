@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../Core/Core.csproj" />
+    <EmbeddedResource Include="wwwroot/*" LogicalName="RepoDlp.Web.%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
