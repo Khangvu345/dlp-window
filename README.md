@@ -1,10 +1,10 @@
 # Repo DLP
 
-Endpoint DLP cho Windows. Mốc hiện tại là **nhiệm vụ 3: dựng khung repo và agent**. Một tiến trình chạy ở khay hệ thống và phục vụ trang quản lý trên máy cá nhân. Trang hiển thị trạng thái kết nối và thời điểm khởi động của phiên agent.
+Endpoint DLP cho Windows. Agent chạy ở khay hệ thống và mở trang quản lý trên loopback. Trang theo dõi thư mục quét và nhãn tài liệu, chỉnh policy và xem nhật ký clipboard hoặc chụp màn hình.
 
 ## Chạy trên Windows
 
-Cài **.NET 10 SDK x64** cho Windows. Giải nén ZIP, mở PowerShell tại thư mục chứa `RepoDlp.slnx` rồi chạy:
+Cài **.NET 10 SDK x64** cho Windows. Mở PowerShell tại thư mục chứa `RepoDlp.slnx` rồi chạy:
 
 ```powershell
 dotnet build RepoDlp.slnx
@@ -18,13 +18,21 @@ Mở vùng biểu tượng ẩn cạnh đồng hồ Windows, tìm **Repo DLP**, 
 | Đường dẫn | Trách nhiệm |
 |---|---|
 | `src/Agent.Windows/` | Entry point STA, WinForms tray, mở trình duyệt, dừng agent và ngăn chạy hai bản trong cùng phiên Windows. |
-| `src/Core/` | Kiểu dữ liệu dùng chung. Hiện có hợp đồng trạng thái agent. Phần policy và phân loại sẽ đặt tại đây. |
-| `src/Infrastructure/` | Project dành cho bộ đọc TXT/DOCX/PDF, theo dõi thư mục và SQLite ở các nhiệm vụ tiếp theo. |
-| `src/Web/` | Vòng đời ASP.NET Core Minimal API, route chỉ đọc `GET /api/status`, HTML/CSS/JavaScript trong `wwwroot/`. Tài nguyên web được nhúng vào assembly. |
-| `samples/` | Vị trí dành cho bộ tài liệu thử. |
-| `tests/Web.Smoke/` | Bài kiểm tra tự động chạy một web host thực, gọi trang, CSS, JS và API. |
+| `src/Core/` | Kiểu dữ liệu dùng chung. Hợp đồng dữ liệu và bộ đánh giá policy. |
+| `src/Infrastructure/` | Bộ đọc TXT, DOCX và PDF, theo dõi thư mục, lưu phân loại và sự kiện vào SQLite. |
+| `src/Web/` | Vòng đời ASP.NET Core Minimal API, API quản lý và HTML/CSS/JavaScript trong `wwwroot/`. Tài nguyên web được nhúng vào assembly. |
+| `samples/` | Policy mẫu dùng khi khởi tạo agent. |
+| `tests/Web.Smoke/` | Kiểm tra tự động trên web host thật và các API quản lý. |
 
-Cấu trúc này dùng một entry point để khởi động toàn bộ ứng dụng. Các mốc tiếp theo sẽ bổ sung quét file, phân loại theo policy, clipboard, screenshot và lưu sự kiện.
+## Thử NV4–NV8
+
+1. Từ biểu tượng khay hệ thống, mở trang quản lý và chọn thư mục chứa bản sao tài liệu thử. Bấm lưu cấu hình và đợi bảng tài liệu cập nhật.
+2. Mở mục **Quy tắc** để sửa policy. Policy mẫu phân loại tài liệu chứa `Tài liệu nội bộ` và có một quy tắc clipboard cho chuỗi đúng 12 chữ số ASCII độc lập.
+3. Từ menu agent, mở tài liệu TXT trong trình xem Repo DLP. Mở mục **Nhật ký** để kiểm tra các lần sao chép và phím chụp mà agent quan sát được. Dùng bộ lọc thời gian và hành vi để tìm sự kiện.
+
+Cài đặt phiên người dùng, `rules.json` và chỉ mục SQLite nằm trong `%LOCALAPPDATA%\RepoDlp`. Nhật ký lưu metadata sự kiện. Phiên bản policy dùng khi phân loại xuất hiện trong API tài liệu.
+
+Hướng dẫn kiểm tra desktop Windows nằm trong thư mục [docs](docs). Trình xem Repo DLP là ứng dụng demo cho việc nhận diện nguồn clipboard và thử cơ chế loại trừ cửa sổ khỏi ảnh chụp. Bảng kiểm Windows trong tài liệu NV7 phân biệt kết quả kỳ vọng và kết quả đã quan sát.
 
 ## Nghiệm thu nhiệm vụ 3
 

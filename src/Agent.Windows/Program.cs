@@ -40,7 +40,9 @@ internal static class Program
     private static void chayPhien(DlpRuntime runtime)
     {
         using var clipboard = new ClipboardMonitor(runtime.danhGiaClipboard, runtime.ghiSuKien);
-        var dashboard = LocalDashboard.StartAsync().GetAwaiter().GetResult();
+        using var boChonThuMuc = new BoChonThuMuc(() => runtime.Settings.ScanDirectory);
+        var dashboard = LocalDashboard.khoiDongAsync(runtime, boChonThuMuc.chonThuMucAsync)
+            .GetAwaiter().GetResult();
         try
         {
             using var tray = new AgentTray(

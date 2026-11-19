@@ -3,21 +3,148 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Repo DLP · Agent Windows</title>
+  <title>Repo DLP · Quản lý agent</title>
   <link rel="stylesheet" href="/app.css">
   <script src="/app.js" defer></script>
 </head>
 <body>
-  <main>
-    <header><span class="mark" aria-hidden="true">D</span> Repo DLP</header>
-    <h1>Agent Windows</h1>
-    <p>Trạng thái agent trên máy này.</p>
-    <dl>
-      <div><dt>Kết nối</dt><dd id="state" aria-live="polite">Đang kiểm tra…</dd></div>
-      <div><dt>Khởi động lúc</dt><dd id="started">—</dd></div>
-      <div><dt>Địa chỉ quản lý</dt><dd id="origin">—</dd></div>
-    </dl>
-    <button type="button" id="refresh">Kiểm tra lại</button>
-  </main>
+  <div class="workspace">
+    <aside class="sidebar">
+      <a class="brand" href="#overview" aria-label="Repo DLP, tổng quan">
+        <span class="brand-mark" aria-hidden="true">D</span>
+        <span>Repo DLP</span>
+      </a>
+      <nav aria-label="Quản lý agent">
+        <a href="#overview" aria-current="page">Tổng quan</a>
+        <a href="#policy">Quy tắc</a>
+        <a href="#events">Nhật ký</a>
+      </nav>
+      <div class="connection">
+        <span id="state" data-tone="muted" aria-live="polite">Đang kết nối…</span>
+        <span id="origin" class="mono"></span>
+      </div>
+    </aside>
+
+    <main>
+      <header class="page-header">
+        <h1 id="page-title">Tổng quan</h1>
+        <button type="button" id="refresh" class="secondary">Làm mới</button>
+      </header>
+      <p id="connection-error" class="status-message" role="status" hidden></p>
+
+      <section id="overview" aria-labelledby="page-title">
+        <div class="summary">
+          <div><span>Phiên agent bắt đầu</span><time id="started">—</time></div>
+          <div><span>Tài liệu theo dõi</span><strong id="document-count">—</strong></div>
+          <div><span>Bảo vệ</span><strong id="protection-state">—</strong></div>
+        </div>
+
+        <section class="panel" aria-labelledby="settings-title">
+          <h2 id="settings-title">Cấu hình agent</h2>
+          <form id="settings-form">
+            <label for="scan-directory">Thư mục quét</label>
+            <div class="folder-field">
+              <input id="scan-directory" type="text" spellcheck="false" autocomplete="off" placeholder="Đường dẫn tuyệt đối">
+              <button type="button" id="choose-folder" class="secondary" hidden>Chọn thư mục</button>
+            </div>
+            <label class="check-field"><input type="checkbox" id="protection"> Bật bảo vệ</label>
+            <div class="actions">
+              <button type="submit">Áp dụng cấu hình</button>
+              <p id="settings-message" class="status-message" role="status" hidden></p>
+            </div>
+          </form>
+          <p id="scan-error" class="status-message" role="status" hidden></p>
+        </section>
+
+        <section class="panel listing" aria-labelledby="documents-title">
+          <h2 id="documents-title">Tài liệu</h2>
+          <div class="table-wrap" tabindex="0" role="region" aria-labelledby="documents-title">
+            <table>
+              <thead><tr><th scope="col">Đường dẫn</th><th scope="col">Trạng thái</th><th scope="col">Nhãn</th><th scope="col">ID quy tắc</th></tr></thead>
+              <tbody id="documents"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="policy" aria-labelledby="page-title" hidden>
+        <form id="policy-form" novalidate>
+          <div class="panel-toolbar">
+            <div>
+              <h2>Quy tắc đang áp dụng</h2>
+              <p>Phiên bản <span id="policy-version" class="mono">—</span></p>
+            </div>
+            <button type="button" id="add-rule" class="secondary">Thêm quy tắc</button>
+          </div>
+          <p class="policy-help">Quy tắc có số ưu tiên cao hơn được xét trước.</p>
+          <div id="rules" class="rules"></div>
+          <div class="actions">
+            <button type="button" id="validate-policy" class="secondary">Kiểm tra quy tắc</button>
+            <button type="submit" id="save-policy">Lưu quy tắc</button>
+            <p id="policy-message" class="status-message" role="status" hidden></p>
+          </div>
+        </form>
+      </section>
+
+      <section id="events" aria-labelledby="page-title" hidden>
+        <section class="panel" aria-label="Bộ lọc nhật ký">
+          <form id="event-filters" class="filters">
+            <label>Từ ngày<input id="from-date" type="date"></label>
+            <label>Đến ngày<input id="until-date" type="date"></label>
+            <label>Hành vi
+              <select id="event-behavior">
+                <option value="">Tất cả</option>
+                <option value="clipboard">Clipboard</option>
+                <option value="screenshot">Chụp màn hình</option>
+              </select>
+            </label>
+            <button type="submit">Lọc</button>
+            <button type="reset" class="secondary">Xóa bộ lọc</button>
+          </form>
+          <p id="events-message" class="status-message" role="status" hidden></p>
+        </section>
+        <section class="panel listing" aria-labelledby="events-title">
+          <h2 id="events-title">Sự kiện</h2>
+          <div class="table-wrap" tabindex="0" role="region" aria-labelledby="events-title">
+            <table>
+              <thead><tr><th scope="col">Thời gian</th><th scope="col">Ứng dụng</th><th scope="col">Hành vi</th><th scope="col">Kết quả</th><th scope="col">ID quy tắc</th><th scope="col">Chi tiết</th></tr></thead>
+              <tbody id="event-rows"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <template id="rule-template">
+    <fieldset class="rule">
+      <legend></legend>
+      <div class="rule-grid">
+        <label>ID quy tắc<input data-field="id" type="text" required autocomplete="off" spellcheck="false"></label>
+        <label>Phạm vi
+          <select data-field="scope">
+            <option value="classification">Phân loại tài liệu</option>
+            <option value="clipboard">Clipboard</option>
+            <option value="screenshot">Chụp màn hình</option>
+          </select>
+        </label>
+        <label>Ưu tiên<input data-field="priority" type="number" step="1" required></label>
+        <label>Kiểu điều kiện<select data-field="kind"></select></label>
+        <label class="rule-pattern"><span data-pattern-label>Điều kiện</span><input data-field="pattern" type="text" required autocomplete="off" spellcheck="false"></label>
+        <label data-label-field>Gán nhãn<input data-field="label" type="text" required autocomplete="off"></label>
+        <label data-action-field>Kết quả
+          <select data-field="action">
+            <option value="block">Chặn</option>
+            <option value="allow">Cho qua</option>
+            <option value="observe">Chỉ quan sát</option>
+          </select>
+        </label>
+      </div>
+      <div class="rule-footer">
+        <p class="rule-error status-message" role="status" hidden></p>
+        <button type="button" class="secondary remove-rule">Xóa quy tắc</button>
+      </div>
+    </fieldset>
+  </template>
 </body>
 </html>
