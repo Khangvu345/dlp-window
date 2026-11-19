@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Infrastructure/Infrastructure.csproj" />
+    <EmbeddedResource Include="../Scan.Smoke/Fixtures/*.pdf" LogicalName="MauPhanLoai.%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
