@@ -91,7 +91,7 @@ td[data-tone="muted"], .empty { color: var(--muted); }
 .filters { display: flex; align-items: end; gap: .65rem; flex-wrap: wrap; }
 .filters label { min-width: 9em; }
 @media (max-width: 850px) {
-  .workspace { grid-template-columns: 1fr; }
+  .workspace { grid-template-columns: minmax(0, 1fr); }
   .sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; }
   .brand { padding: .7rem .9rem; }
   nav { display: flex; flex-wrap: wrap; gap: 0; }
