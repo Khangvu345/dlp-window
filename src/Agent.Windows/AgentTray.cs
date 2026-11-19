@@ -8,10 +8,12 @@ internal sealed class AgentTray : ApplicationContext
     private readonly NotifyIcon icon;
     private readonly Uri address;
 
-    public AgentTray(Uri address)
+    public AgentTray(Uri address, Action? openDocument = null)
     {
         this.address = address;
-        menu.Items.Add("Mở trang quản lý", null, (_, _) => OpenDashboard());
+        menu.Items.Add("Mở trang quản lý", null, (_, _) => moTrangQuanLy());
+        if (openDocument is not null)
+            menu.Items.Add("Mở tài liệu thử", null, (_, _) => openDocument());
         menu.Items.Add("Thoát agent", null, (_, _) => ExitThread());
         icon = new NotifyIcon
         {
@@ -20,10 +22,10 @@ internal sealed class AgentTray : ApplicationContext
             ContextMenuStrip = menu,
             Visible = true
         };
-        icon.DoubleClick += (_, _) => OpenDashboard();
+        icon.DoubleClick += (_, _) => moTrangQuanLy();
     }
 
-    private void OpenDashboard()
+    private void moTrangQuanLy()
     {
         try
         {
