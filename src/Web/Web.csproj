@@ -2,6 +2,7 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../Core/Core.csproj" />
+    <ProjectReference Include="../Infrastructure/Infrastructure.csproj" />
     <EmbeddedResource Include="wwwroot/*" LogicalName="RepoDlp.Web.%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

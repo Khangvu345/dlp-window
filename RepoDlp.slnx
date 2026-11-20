@@ -6,6 +6,8 @@
     <Project Path="src/Web/Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Classification.Smoke/Classification.Smoke.csproj" />
+    <Project Path="tests/Scan.Smoke/Scan.Smoke.csproj" />
     <Project Path="tests/Web.Smoke/Web.Smoke.csproj" />
   </Folder>
 </Solution>
