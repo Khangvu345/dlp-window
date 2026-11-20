@@ -9,6 +9,7 @@ internal sealed class DocumentViewer : Form
 {
     private const string ApplicationName = "Repo DLP · Trình xem tài liệu";
     private static DocumentViewer? activeViewer;
+    private static ScreenshotShortcutMonitor? shortcuts;
     private readonly string documentPath;
     private readonly string documentSha256;
     private readonly string documentText;
@@ -26,7 +27,6 @@ internal sealed class DocumentViewer : Form
     private readonly ToolStripStatusLabel status = new("Đang kiểm tra policy…");
     private readonly ContextMenuStrip copyMenu = new();
     private readonly System.Windows.Forms.Timer policyTimer = new() { Interval = 350 };
-    private ScreenshotShortcutMonitor? shortcuts;
     private Task pendingAudit = Task.CompletedTask;
     private DlpDecision? decision;
     private bool refreshPending;
@@ -96,10 +96,39 @@ internal sealed class DocumentViewer : Form
 
     public static void dongTaiLieu() => activeViewer?.Close();
 
+    public static void dungTheoDoiChupManHinh()
+    {
+        shortcuts?.Dispose();
+        shortcuts = null;
+    }
+
+    private static void dungTheoDoiKhiKhongCan()
+    {
+        if (activeViewer is null && shortcuts?.DangChoNha == false)
+            dungTheoDoiChupManHinh();
+    }
+
+    public static DlpDecision? layChinhSachAnhClipboard(string tenUngDung)
+    {
+        if (activeViewer is not { visibleText: true, IsHandleCreated: true } viewer ||
+            !ScreenshotShortcutMonitor.laCuaSoDangHien(viewer.Handle))
+            return null;
+
+        if (!ScreenshotShortcutMonitor.laUngDungChup(tenUngDung) &&
+            (tenUngDung != ClipboardMonitor.UnknownApplication || !ScreenshotShortcutMonitor.tienCanhLaUngDungChup()))
+            return null;
+
+        return viewer.evaluateScreenshot(viewer.documentPath, viewer.documentSha256);
+    }
+
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
-        shortcuts = new ScreenshotShortcutMonitor(Handle, ghiNhanPhimChup);
+        shortcuts ??= new ScreenshotShortcutMonitor(
+            () => activeViewer is { IsHandleCreated: true } viewer ? viewer.Handle : 0,
+            () => activeViewer?.decision?.Action == DlpAction.Block,
+            (method, blocked) => activeViewer?.ghiNhanPhimChup(method, blocked),
+            dungTheoDoiKhiKhongCan);
         capNhatPolicy();
         policyTimer.Start();
     }
@@ -137,7 +166,7 @@ internal sealed class DocumentViewer : Form
         }
 
         status.Text = shortcuts?.IsActive == false
-            ? $"{affinityStatus} · Không ghi nhận được phím chụp"
+            ? $"{affinityStatus} · Không theo dõi được phím chụp"
             : affinityStatus;
     }
 
@@ -206,13 +235,13 @@ internal sealed class DocumentViewer : Form
             MessageBoxButtons.OK, MessageBoxIcon.Warning);
     }
 
-    private void ghiNhanPhimChup(string method)
+    private void ghiNhanPhimChup(string method, bool blocked)
     {
-        DlpAction result = decision?.Action == DlpAction.Allow && !excluded
-            ? DlpAction.Allow
-            : DlpAction.Observe;
+        DlpAction result = blocked ? DlpAction.Block
+            : decision?.Action == DlpAction.Allow && !excluded ? DlpAction.Allow : DlpAction.Observe;
+        string detail = blocked ? "Đã chặn sự kiện phím chụp" : $"{affinityStatus} · Chưa xác minh ảnh thu được";
         var entry = new AuditEvent(DateTimeOffset.UtcNow, ApplicationName, AuditBehavior.Screenshot,
-            result, decision?.RuleId, $"{method} · {affinityStatus} · Chưa xác minh ảnh thu được");
+            result, decision?.RuleId, $"{method} · {detail}");
 
         // Đưa thao tác ghi SQLite ra khỏi luồng xử lý phím của Windows.
         pendingAudit = pendingAudit.ContinueWith(_ =>
@@ -234,7 +263,7 @@ internal sealed class DocumentViewer : Form
         {
             if (ReferenceEquals(activeViewer, this)) activeViewer = null;
             policyTimer.Dispose();
-            shortcuts?.Dispose();
+            dungTheoDoiKhiKhongCan();
             pendingAudit.GetAwaiter().GetResult();
             copyMenu.Dispose();
         }

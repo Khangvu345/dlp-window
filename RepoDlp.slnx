@@ -9,5 +9,6 @@
     <Project Path="tests/Classification.Smoke/Classification.Smoke.csproj" />
     <Project Path="tests/Scan.Smoke/Scan.Smoke.csproj" />
     <Project Path="tests/Web.Smoke/Web.Smoke.csproj" />
+    <Project Path="tests/WindowsClipboard.Smoke/WindowsClipboard.Smoke.csproj" />
   </Folder>
 </Solution>

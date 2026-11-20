@@ -17,7 +17,7 @@ Mở vùng biểu tượng ẩn cạnh đồng hồ Windows, tìm **Repo DLP**, 
 
 1. Nhấp phải biểu tượng **Repo DLP** cạnh đồng hồ và chọn **Thử popup cảnh báo**. Hộp thoại Windows hiển thị trên màn hình của phiên đang chạy agent. Bấm **OK** để đóng. Lần thử này không ghi sự kiện vi phạm.
 2. Chọn **Xem nhật ký trên máy** để xem 200 sự kiện gần nhất. Cửa sổ đọc SQLite tại `%LOCALAPPDATA%\RepoDlp\index.sqlite3` và cập nhật khi có sự kiện mới.
-3. Với bảo vệ đang bật và policy mẫu, gõ chuỗi giả `123456789012` trong Notepad rồi chọn chuỗi và nhấn Ctrl+C. Kiểm tra hộp thoại **Repo DLP · Đã chặn** và dòng Clipboard có ID **clipboard-fake-12-digits**. Đóng hộp thoại rồi lặp lại thao tác để kiểm tra lần cảnh báo tiếp theo.
+3. Với bảo vệ đang bật và policy mẫu, gõ chuỗi giả `123456789012` trong Notepad rồi chọn chuỗi và nhấn Ctrl+C. Kiểm tra hộp thoại **Repo DLP · Đã chặn** và dòng Clipboard có ID **clipboard-fake-12-digits**. Đóng hộp thoại rồi dán hai lần vào Notepad. Mỗi lần dán phải nhận được thông điệp thay thế. Chọn lại chuỗi số ban đầu và sao chép lần nữa để kiểm tra cảnh báo ở lượt tiếp theo.
 
 ## Cấu trúc mã nguồn
 
