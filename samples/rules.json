@@ -1,0 +1,36 @@
+{
+  "rules": [
+    {
+      "id": "classify-internal",
+      "scope": "classification",
+      "priority": 100,
+      "kind": "keyword",
+      "pattern": "Tài liệu nội bộ",
+      "label": "Nội bộ"
+    },
+    {
+      "id": "clipboard-fake-12-digits",
+      "scope": "clipboard",
+      "priority": 200,
+      "kind": "regex",
+      "pattern": "(?<![0-9])[0-9]{12}(?![0-9])",
+      "action": "block"
+    },
+    {
+      "id": "clipboard-internal",
+      "scope": "clipboard",
+      "priority": 100,
+      "kind": "label",
+      "pattern": "Nội bộ",
+      "action": "block"
+    },
+    {
+      "id": "screenshot-internal",
+      "scope": "screenshot",
+      "priority": 100,
+      "kind": "label",
+      "pattern": "Nội bộ",
+      "action": "block"
+    }
+  ]
+}

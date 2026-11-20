@@ -1,3 +1,4 @@
+using RepoDlp.Infrastructure;
 using RepoDlp.Web;
 
 namespace RepoDlp.Agent.Windows;
@@ -17,21 +18,36 @@ internal static class Program
         ApplicationConfiguration.Initialize();
         try
         {
-            var dashboard = LocalDashboard.StartAsync().GetAwaiter().GetResult();
+            var thuMucDuLieu = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RepoDlp");
+            var runtime = DlpRuntime.khoiDong(thuMucDuLieu);
             try
             {
-                using var tray = new AgentTray(dashboard.Address);
-                Application.Run(tray);
+                chayPhien(runtime);
             }
             finally
             {
-                dashboard.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
             }
         }
         catch (Exception error)
         {
             MessageBox.Show(error.Message, "Lỗi Repo DLP", MessageBoxButtons.OK, MessageBoxIcon.Error);
             Environment.ExitCode = 1;
+        }
+    }
+
+    private static void chayPhien(DlpRuntime runtime)
+    {
+        var dashboard = LocalDashboard.StartAsync().GetAwaiter().GetResult();
+        try
+        {
+            using var tray = new AgentTray(dashboard.Address);
+            Application.Run(tray);
+        }
+        finally
+        {
+            dashboard.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
     }
 }
