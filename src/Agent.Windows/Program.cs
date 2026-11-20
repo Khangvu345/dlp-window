@@ -43,11 +43,14 @@ internal static class Program
         var dashboard = LocalDashboard.StartAsync().GetAwaiter().GetResult();
         try
         {
-            using var tray = new AgentTray(dashboard.Address);
+            using var tray = new AgentTray(
+                dashboard.Address,
+                () => DocumentViewer.moTaiLieu(runtime.danhGiaChupManHinh, runtime.ghiSuKien, clipboard.saoChepTuTaiLieu));
             Application.Run(tray);
         }
         finally
         {
+            DocumentViewer.dongTaiLieu();
             dashboard.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
     }
