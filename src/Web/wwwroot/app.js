@@ -43,6 +43,24 @@ let dangLuuCauHinh = false;
 let dangCapNhatTongQuan = false;
 let phienBanCauHinh = 0;
 let daTaiChinhSach = false;
+let phamViDangXem = "classification";
+const huongDanPhamVi = {
+  classification: "Khi quét thư mục, agent đọc nội dung và tự gán nhãn cho tài liệu.",
+  clipboard: "Agent kiểm tra nội dung sao chép ngay cả khi chưa xác định được nhãn tài liệu nguồn.",
+  screenshot: "Chọn hành động theo nhãn tài liệu mở trong trình xem Repo DLP."
+};
+
+function chonPhamVi(phamVi) {
+  phamViDangXem = phamVi;
+  document.querySelector("#scope-help").textContent = huongDanPhamVi[phamVi];
+  for (const nut of document.querySelectorAll("[data-scope]"))
+    nut.setAttribute("aria-pressed", String(nut.dataset.scope === phamVi));
+  for (const muc of danhSachQuyTac.children)
+    muc.hidden = layTruong(muc, "scope").value !== phamVi;
+}
+for (const nut of document.querySelectorAll("[data-scope]"))
+  nut.addEventListener("click", () => chonPhamVi(nut.dataset.scope));
+
 let thongSoNhatKy = "";
 let lanTaiNhatKy = 0;
 
@@ -101,7 +119,7 @@ function veCauHinh(phanHoi) {
     baoVe.checked = settings.protectionEnabled;
   }
   chonThuMuc.hidden = !hasFolderPicker;
-  document.querySelector("#protection-state").textContent = settings.protectionEnabled ? "Đang bật" : "Đang tắt";
+  document.querySelector("#protection-state").textContent = settings.protectionEnabled ? (settings.scanDirectory ? "Đang bật" : "Đang bật · Chưa chọn thư mục") : "Đang tắt";
   hienThongBao(document.querySelector("#scan-error"), scanError, true);
 }
 
@@ -135,7 +153,7 @@ async function luuCauHinh(suKien) {
     const phanHoi = await goiApi("/api/settings", "PUT", duLieu);
     daSuaCauHinh = false;
     veCauHinh(phanHoi);
-    hienThongBao(thongBao, "Đã áp dụng cấu hình.");
+    hienThongBao(thongBao, phanHoi.settings.scanDirectory ? "Đã áp dụng cấu hình." : "Chưa chọn thư mục. Agent chưa quét tài liệu.");
   } catch (loi) {
     hienThongBao(thongBao, loi.message, true);
   } finally {
@@ -151,12 +169,17 @@ chonThuMuc.addEventListener("click", async () => {
   chonThuMuc.disabled = true;
   const nutLuu = bieuMauCauHinh.querySelector("button[type=submit]");
   nutLuu.disabled = true;
+  const thongBao = document.querySelector("#settings-message");
+  hienThongBao(thongBao, "Đang mở cửa sổ chọn thư mục trên Windows…");
   try {
     const { path } = await goiApi("/api/folder-picker", "POST");
     if (path) {
       daSuaCauHinh = true;
       thuMuc.value = path;
       thuMuc.focus();
+      hienThongBao(thongBao, "Đã chọn thư mục. Bấm Áp dụng cấu hình để bắt đầu quét.");
+    } else {
+      hienThongBao(thongBao, "Chưa chọn thư mục mới.");
     }
   } catch (loi) {
     hienThongBao(document.querySelector("#settings-message"), loi.message, true);
@@ -188,7 +211,10 @@ function themQuyTac(quyTac, chuyenTieuDiem = false) {
   const khuon = document.querySelector("#rule-template");
   const phanTu = khuon.content.firstElementChild.cloneNode(true);
   const tieuDe = phanTu.querySelector("legend");
-  tieuDe.textContent = quyTac.id || "Quy tắc mới";
+  tieuDe.textContent = quyTac.scope === "classification"
+    ? quyTac.label || "Nhãn mới"
+    : quyTac.pattern || "Điều kiện mới";
+  phanTu.hidden = quyTac.scope !== phamViDangXem;
   layTruong(phanTu, "id").value = quyTac.id;
   layTruong(phanTu, "scope").value = quyTac.scope;
   layTruong(phanTu, "priority").value = quyTac.priority;
@@ -196,12 +222,8 @@ function themQuyTac(quyTac, chuyenTieuDiem = false) {
   layTruong(phanTu, "label").value = quyTac.label ?? "";
   layTruong(phanTu, "action").value = quyTac.action ?? "block";
   capNhatTruongQuyTac(phanTu, quyTac.kind);
-  layTruong(phanTu, "id").addEventListener("input", ({ target }) => {
-    tieuDe.textContent = target.value || "Quy tắc mới";
-  });
-  layTruong(phanTu, "scope").addEventListener("change", () => {
-    capNhatTruongQuyTac(phanTu, layTruong(phanTu, "kind").value);
-  });
+  const truongTieuDe = layTruong(phanTu, quyTac.scope === "classification" ? "label" : "pattern");
+  truongTieuDe.addEventListener("input", () => { tieuDe.textContent = truongTieuDe.value || "Quy tắc mới"; });
   layTruong(phanTu, "kind").addEventListener("change", ({ target }) => {
     phanTu.querySelector("[data-pattern-label]").textContent = loaiDieuKien[target.value];
   });
@@ -210,7 +232,7 @@ function themQuyTac(quyTac, chuyenTieuDiem = false) {
     document.querySelector("#add-rule").focus();
   });
   danhSachQuyTac.append(phanTu);
-  if (chuyenTieuDiem) layTruong(phanTu, "id").focus();
+  if (chuyenTieuDiem) layTruong(phanTu, "pattern").focus();
 }
 
 function layChinhSachTuBieuMau() {
@@ -251,7 +273,7 @@ function hienLoiQuyTac(cacLoi) {
 function veChinhSach(phanHoi) {
   danhSachQuyTac.replaceChildren();
   for (const quyTac of phanHoi.policy.rules) themQuyTac(quyTac);
-  document.querySelector("#policy-version").textContent = phanHoi.policyVersion;
+  chonPhamVi(phamViDangXem);
   daTaiChinhSach = true;
 }
 
@@ -259,7 +281,15 @@ async function kiemTraHoacLuuQuyTac(luu) {
   const thongBao = document.querySelector("#policy-message");
   hienLoiQuyTac([]);
   hienThongBao(thongBao);
-  if (!daTaiChinhSach || !bieuMauQuyTac.reportValidity()) return;
+  if (!daTaiChinhSach) return;
+  const truongSai = bieuMauQuyTac.querySelector("input:invalid, select:invalid");
+  if (truongSai) {
+    chonPhamVi(layTruong(truongSai.closest(".rule"), "scope").value);
+    const nangCao = truongSai.closest("details");
+    if (nangCao) nangCao.open = true;
+    truongSai.reportValidity();
+    return;
+  }
   const duLieu = layChinhSachTuBieuMau();
   const khoa = Array.from(bieuMauQuyTac.elements).filter(phanTu => !phanTu.disabled);
   for (const phanTu of khoa) phanTu.disabled = true;
@@ -281,7 +311,11 @@ async function kiemTraHoacLuuQuyTac(luu) {
     hienThongBao(thongBao, loi.chiTiet?.length ? thongBaoLoiChinhSach(loi.chiTiet) : loi.message, true);
   } finally {
     for (const phanTu of khoa) phanTu.disabled = false;
-    danhSachQuyTac.querySelector('[aria-invalid="true"]')?.focus();
+    const truongSai = danhSachQuyTac.querySelector('[aria-invalid="true"]');
+    if (truongSai) {
+      chonPhamVi(layTruong(truongSai.closest(".rule"), "scope").value);
+      truongSai.focus();
+    }
   }
 }
 
@@ -292,7 +326,8 @@ function thongBaoLoiChinhSach(cacLoi) {
 
 document.querySelector("#add-rule").addEventListener("click", () => {
   if (!daTaiChinhSach) return;
-  themQuyTac({ id: "", scope: "classification", priority: 0, kind: "keyword", pattern: "" }, true);
+  themQuyTac({ id: phamViDangXem + "-" + crypto.randomUUID(), scope: phamViDangXem,
+    priority: 0, kind: loaiTheoPhamVi[phamViDangXem][0], pattern: "" }, true);
 });
 document.querySelector("#validate-policy").addEventListener("click", () => kiemTraHoacLuuQuyTac(false));
 bieuMauQuyTac.addEventListener("submit", suKien => {

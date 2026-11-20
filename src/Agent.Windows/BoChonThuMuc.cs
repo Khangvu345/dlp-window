@@ -1,6 +1,6 @@
 namespace RepoDlp.Agent.Windows;
 
-internal sealed class BoChonThuMuc : Control
+internal sealed class BoChonThuMuc : Form
 {
     private readonly Func<string?> layThuMucHienTai;
     private bool dangMo;
@@ -8,8 +8,14 @@ internal sealed class BoChonThuMuc : Control
     public BoChonThuMuc(Func<string?> layThuMucHienTai)
     {
         this.layThuMucHienTai = layThuMucHienTai;
-        // Tạo handle trên luồng STA trước khi web nhận yêu cầu.
-        CreateHandle();
+        Text = "Repo DLP · Chọn thư mục quét";
+        TopMost = true;
+        StartPosition = FormStartPosition.CenterScreen;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        ControlBox = false;
+        Size = new Size(320, 80);
+        // Tạo handle trên luồng STA dùng chung với biểu tượng khay hệ thống.
+        _ = Handle;
     }
 
     public Task<string?> chonThuMucAsync(CancellationToken cancellationToken) =>
@@ -23,6 +29,9 @@ internal sealed class BoChonThuMuc : Control
         dangMo = true;
         try
         {
+            // Cửa sổ sở hữu giúp người dùng tìm được hộp thoại từ thanh tác vụ khi trình duyệt đang ở trước.
+            Show();
+            Activate();
             using var hopThoai = new FolderBrowserDialog
             {
                 Description = "Chọn thư mục cần quét",
@@ -30,10 +39,11 @@ internal sealed class BoChonThuMuc : Control
                 ShowNewFolderButton = false,
                 SelectedPath = layThuMucHienTai() ?? ""
             };
-            return hopThoai.ShowDialog() == DialogResult.OK ? hopThoai.SelectedPath : null;
+            return hopThoai.ShowDialog(this) == DialogResult.OK ? hopThoai.SelectedPath : null;
         }
         finally
         {
+            Hide();
             dangMo = false;
         }
     }

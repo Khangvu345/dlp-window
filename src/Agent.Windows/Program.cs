@@ -47,7 +47,13 @@ internal static class Program
         {
             using var tray = new AgentTray(
                 dashboard.Address,
-                () => DocumentViewer.moTaiLieu(runtime.danhGiaChupManHinh, runtime.ghiSuKien, clipboard.saoChepTuTaiLieu));
+                () => DocumentViewer.moTaiLieu(runtime.danhGiaChupManHinh, runtime.ghiSuKien, clipboard.saoChepTuTaiLieu),
+                async () =>
+                {
+                    var duongDan = await boChonThuMuc.chonThuMucAsync(CancellationToken.None);
+                    if (duongDan is not null)
+                        await runtime.capNhatCauHinhAsync(runtime.Settings with { ScanDirectory = duongDan });
+                });
             Application.Run(tray);
         }
         finally
