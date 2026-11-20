@@ -8,28 +8,39 @@ namespace RepoDlp.Agent.Windows;
 internal sealed class ClipboardMonitor : NativeWindow, IDisposable
 {
     private const int ClipboardUpdate = 0x031D;
+    private const uint Bitmap = 2;
+    private const uint Dib = 8;
     private const uint UnicodeText = 13;
+    private const uint DibV5 = 17;
     private const uint MoveableMemory = 0x0002;
     private const int MaxRetries = 5;
     private const string DemoApplication = "Repo DLP";
-    private const string UnknownApplication = "Không xác định";
+    internal const string UnknownApplication = "Không xác định";
+    private const string CopyBlockedMessage = "Nội dung sao chép đã bị chặn bởi Repo DLP.";
+    private const string ScreenshotBlockedMessage = "Ảnh chụp màn hình đã bị chặn bởi Repo DLP.";
+    private const string ScreenshotDetail = "Ảnh từ công cụ chụp trên clipboard";
 
     private readonly Func<string?, string, DlpDecision> evaluate;
     private readonly Action<AuditEvent> addAuditEvent;
+    private readonly Func<string, DlpDecision?>? evaluateScreenshot;
+    private readonly uint pngFormat = dangKyDinhDangClipboard("PNG");
+    private readonly uint mimePngFormat = dangKyDinhDangClipboard("image/png");
     private readonly System.Windows.Forms.Timer retryTimer = new() { Interval = 35 };
-    private CopyOrigin? copyOrigin;
-    private uint handledSequence;
-    private uint retrySequence;
+    private string? copyOrigin;
+    private ClipboardIdentity handledIdentity;
+    private ClipboardIdentity retryIdentity;
     private int retries;
 
     public ClipboardMonitor(
         Func<string?, string, DlpDecision> evaluate,
-        Action<AuditEvent> addAuditEvent)
+        Action<AuditEvent> addAuditEvent,
+        Func<string, DlpDecision?>? evaluateScreenshot = null)
     {
         this.evaluate = evaluate;
         this.addAuditEvent = addAuditEvent;
+        this.evaluateScreenshot = evaluateScreenshot;
         CreateHandle(new CreateParams { Parent = new IntPtr(-3) }); // Chỉ nhận thông báo, không tạo cửa sổ hiển thị.
-        handledSequence = laySoThuTuClipboard();
+        handledIdentity = layDanhTinhClipboard();
         if (!batDauNhanThongBaoClipboard(Handle))
         {
             var error = new Win32Exception(Marshal.GetLastWin32Error());
@@ -46,27 +57,12 @@ internal sealed class ClipboardMonitor : NativeWindow, IDisposable
             return false;
 
         var originPath = Path.GetFullPath(sourcePath);
-        var byteCount = checked(text.Length * sizeof(char));
-        var memory = capPhatBoNhoToanCuc(MoveableMemory, (nuint)byteCount + sizeof(char));
+        var memory = taoVanBanClipboard(text);
         if (memory == IntPtr.Zero)
             return false;
 
         try
         {
-            var destination = khoaBoNhoToanCuc(memory);
-            if (destination == IntPtr.Zero)
-                return false;
-
-            try
-            {
-                Marshal.Copy(text.ToCharArray(), 0, destination, text.Length);
-                Marshal.WriteInt16(destination, byteCount, 0);
-            }
-            finally
-            {
-                moKhoaBoNhoToanCuc(memory);
-            }
-
             if (!moClipboard(Handle))
                 return false;
 
@@ -74,15 +70,13 @@ internal sealed class ClipboardMonitor : NativeWindow, IDisposable
             {
                 if (!lamTrongClipboard())
                     return false;
+                copyOrigin = null;
                 if (datDuLieuClipboard(UnicodeText, memory) == IntPtr.Zero)
-                {
-                    handledSequence = laySoThuTuClipboard();
                     return false;
-                }
 
                 // Clipboard nhận quyền quản lý vùng nhớ khi ghi thành công.
                 memory = IntPtr.Zero;
-                copyOrigin = new CopyOrigin(laySoThuTuClipboard(), originPath);
+                copyOrigin = originPath;
             }
             finally
             {
@@ -102,7 +96,7 @@ internal sealed class ClipboardMonitor : NativeWindow, IDisposable
     protected override void WndProc(ref Message message)
     {
         if (message.Msg == ClipboardUpdate &&
-            (!retryTimer.Enabled || laySoThuTuClipboard() != retrySequence))
+            (!retryTimer.Enabled || layDanhTinhClipboard() != retryIdentity))
             xuLyThayDoiClipboard();
 
         base.WndProc(ref message);
@@ -111,11 +105,11 @@ internal sealed class ClipboardMonitor : NativeWindow, IDisposable
     private void xuLyThayDoiClipboard()
     {
         retryTimer.Stop();
-        var sequence = laySoThuTuClipboard();
-        if (sequence == handledSequence)
+        var identity = layDanhTinhClipboard();
+        if (daXuLyClipboard(identity))
             return;
 
-        batDauPhienClipboard(sequence);
+        batDauPhienClipboard(identity);
 
         try
         {
@@ -124,69 +118,105 @@ internal sealed class ClipboardMonitor : NativeWindow, IDisposable
                 if (henThuLai())
                     return;
 
-                handledSequence = sequence;
-                ghiNhatKy(layTenUngDung(layCuaSoSoHuuClipboard()), DlpAction.Observe, null, "source-unknown read-failed");
+                handledIdentity = identity;
+                ghiNhatKy(layTenUngDung(identity.Owner), AuditBehavior.Clipboard, DlpAction.Observe, null,
+                    "source-unknown read-failed");
                 return;
             }
 
-            sequence = snapshot.Sequence;
-            if (sequence == handledSequence)
+            identity = snapshot.Identity;
+            if (daXuLyClipboard(identity))
                 return;
 
-            batDauPhienClipboard(sequence);
-            var sourcePath = snapshot.Owner == Handle && copyOrigin is { } origin && origin.Sequence == sequence
-                ? origin.Path
-                : null;
-            var application = sourcePath is null ? layTenUngDung(snapshot.Owner) : DemoApplication;
+            batDauPhienClipboard(identity);
+            var sourcePath = identity.Owner == Handle ? copyOrigin : null;
+            var application = sourcePath is null ? layTenUngDung(identity.Owner) : DemoApplication;
             var source = sourcePath is null ? "source-unknown" : "source-known";
+            var screenshot = snapshot.HasImage ? evaluateScreenshot?.Invoke(application) : null;
 
-            if (snapshot.Text is null)
+            if (screenshot?.Action == DlpAction.Block)
             {
-                handledSequence = sequence;
-                ghiNhatKy(application, DlpAction.Observe, null, source + " no-text");
+                xuLyChanClipboard(identity, application, AuditBehavior.Screenshot, screenshot.RuleId,
+                    ScreenshotDetail, ScreenshotBlockedMessage);
                 return;
             }
 
-            var decision = evaluate(sourcePath, snapshot.Text);
-            if (decision.Action != DlpAction.Block)
+            if (snapshot.HasText && snapshot.Text is null && henThuLai())
+                return;
+
+            var clipboard = snapshot.Text is { } text ? evaluate(sourcePath, text) : null;
+            if (clipboard?.Action == DlpAction.Block)
             {
-                handledSequence = sequence;
-                ghiNhatKy(application, decision.Action, decision.RuleId, source);
+                if (!xuLyChanClipboard(identity, application, AuditBehavior.Clipboard, clipboard.RuleId,
+                        source, CopyBlockedMessage))
+                    return;
+
+                if (screenshot is not null)
+                    ghiNhatKy(application, AuditBehavior.Screenshot, screenshot.Action, screenshot.RuleId,
+                        ScreenshotDetail);
                 return;
             }
 
-            var result = thuXoaClipboard(sequence);
-            switch (result)
-            {
-                case ClearResult.Cleared:
-                    ghiNhatKy(application, DlpAction.Block, decision.RuleId, source);
-                    break;
-                case ClearResult.Busy when henThuLai():
-                    break;
-                case ClearResult.Changed:
-                    handledSequence = sequence;
-                    ghiNhatKy(application, DlpAction.Observe, decision.RuleId, source + " clipboard-changed");
-                    break;
-                default:
-                    handledSequence = sequence;
-                    ghiNhatKy(application, DlpAction.Observe, decision.RuleId, source + " clear-failed");
-                    break;
-            }
+            handledIdentity = identity;
+            if (screenshot is not null)
+                ghiNhatKy(application, AuditBehavior.Screenshot, screenshot.Action, screenshot.RuleId,
+                    ScreenshotDetail);
+            else
+                ghiNhatKy(application, AuditBehavior.Clipboard, clipboard?.Action ?? DlpAction.Observe,
+                    clipboard?.RuleId, clipboard is not null
+                        ? source
+                        : source + (snapshot.HasText ? " read-failed" : " no-text"));
         }
         catch (Exception error)
         {
-            if (laySoThuTuClipboard() == sequence)
-                handledSequence = sequence;
+            if (layDanhTinhClipboard() == identity)
+                handledIdentity = identity;
             Trace.TraceError("Repo DLP clipboard: {0}", error.GetType().Name);
         }
     }
 
-    private void batDauPhienClipboard(uint sequence)
+    private bool xuLyChanClipboard(ClipboardIdentity identity, string application, AuditBehavior behavior,
+        string? ruleId, string detail, string message)
     {
-        if (retrySequence == sequence)
+        var result = thuThayClipboard(identity, message);
+        if (result == ReplaceResult.Busy && henThuLai())
+            return false;
+
+        handledIdentity = identity;
+        if (result == ReplaceResult.Changed)
+            retryTimer.Start();
+
+        var outcome = result is ReplaceResult.Replaced or ReplaceResult.Cleared ? DlpAction.Block : DlpAction.Observe;
+        var status = behavior == AuditBehavior.Screenshot ? result switch
+        {
+            ReplaceResult.Replaced => " · Đã loại ảnh khỏi clipboard",
+            ReplaceResult.Cleared => " · Đã loại ảnh khỏi clipboard, ghi thông báo thất bại",
+            ReplaceResult.Changed => " · Clipboard đã đổi trước khi xử lý",
+            _ => " · Không thể xóa ảnh"
+        } : result switch
+        {
+            ReplaceResult.Replaced => "",
+            ReplaceResult.Cleared => " notice-failed",
+            ReplaceResult.Changed => " clipboard-changed",
+            _ => " clear-failed"
+        };
+        ghiNhatKy(application, behavior, outcome, ruleId, detail + status);
+        return true;
+    }
+
+    private bool daXuLyClipboard(ClipboardIdentity identity) =>
+        // Cửa sổ listener chỉ sở hữu văn bản từ trình xem đã ghi nguồn hoặc thông báo do agent tạo.
+        identity == handledIdentity || (identity.Owner == Handle && copyOrigin is null);
+
+    private static ClipboardIdentity layDanhTinhClipboard() =>
+        new(laySoThuTuClipboard(), layCuaSoSoHuuClipboard());
+
+    private void batDauPhienClipboard(ClipboardIdentity identity)
+    {
+        if (retryIdentity == identity)
             return;
 
-        retrySequence = sequence;
+        retryIdentity = identity;
         retries = 0;
     }
 
@@ -208,39 +238,14 @@ internal sealed class ClipboardMonitor : NativeWindow, IDisposable
 
         try
         {
-            if (!coDinhDangClipboard(UnicodeText))
-            {
-                snapshot = new ClipboardSnapshot(laySoThuTuClipboard(), layCuaSoSoHuuClipboard(), null);
-                return true;
-            }
-
-            var data = layDuLieuClipboard(UnicodeText);
-            if (data == IntPtr.Zero)
-                return false;
-
-            var characterCount = layKichThuocBoNhoToanCuc(data) / sizeof(char);
-            if (characterCount == 0 || characterCount > (nuint)int.MaxValue)
-                return false;
-
-            var pointer = khoaBoNhoToanCuc(data);
-            if (pointer == IntPtr.Zero)
-                return false;
-
-            try
-            {
-                var text = Marshal.PtrToStringUni(pointer, (int)characterCount);
-                var terminator = text.IndexOf('\0');
-                if (terminator < 0)
-                    return false;
-
-                snapshot = new ClipboardSnapshot(
-                    laySoThuTuClipboard(), layCuaSoSoHuuClipboard(), text[..terminator]);
-                return true;
-            }
-            finally
-            {
-                moKhoaBoNhoToanCuc(data);
-            }
+            var hasImage = coDinhDangClipboard(Bitmap) || coDinhDangClipboard(Dib) ||
+                coDinhDangClipboard(DibV5) ||
+                (pngFormat != 0 && coDinhDangClipboard(pngFormat)) ||
+                (mimePngFormat != 0 && coDinhDangClipboard(mimePngFormat));
+            var hasText = coDinhDangClipboard(UnicodeText);
+            var text = hasText ? docVanBanClipboard() : null;
+            snapshot = new ClipboardSnapshot(layDanhTinhClipboard(), hasImage, hasText, text);
+            return true;
         }
         finally
         {
@@ -248,33 +253,105 @@ internal sealed class ClipboardMonitor : NativeWindow, IDisposable
         }
     }
 
-    private ClearResult thuXoaClipboard(uint sequence)
+    private static string? docVanBanClipboard()
     {
-        if (!moClipboard(Handle))
-            return ClearResult.Busy;
+        var data = layDuLieuClipboard(UnicodeText);
+        if (data == IntPtr.Zero)
+            return null;
+
+        var characterCount = layKichThuocBoNhoToanCuc(data) / sizeof(char);
+        if (characterCount == 0 || characterCount > (nuint)int.MaxValue)
+            return null;
+
+        var pointer = khoaBoNhoToanCuc(data);
+        if (pointer == IntPtr.Zero)
+            return null;
 
         try
         {
-            if (laySoThuTuClipboard() != sequence)
-                return ClearResult.Changed;
-            if (!lamTrongClipboard())
-                return ClearResult.Failed;
-
-            // Ghi nhận số thứ tự khi còn giữ khóa để mỗi lần xóa chỉ phát sinh một log.
-            handledSequence = laySoThuTuClipboard();
-            copyOrigin = null;
-            return ClearResult.Cleared;
+            var text = Marshal.PtrToStringUni(pointer, (int)characterCount);
+            var terminator = text.IndexOf('\0');
+            return terminator < 0 ? null : text[..terminator];
         }
         finally
         {
-            dongClipboard();
+            moKhoaBoNhoToanCuc(data);
         }
     }
 
-    private void ghiNhatKy(string application, DlpAction outcome, string? ruleId, string detail)
+    private static nint taoVanBanClipboard(string text)
+    {
+        var byteCount = checked(text.Length * sizeof(char));
+        var memory = capPhatBoNhoToanCuc(MoveableMemory, (nuint)byteCount + sizeof(char));
+        if (memory == IntPtr.Zero)
+            return IntPtr.Zero;
+
+        var complete = false;
+        try
+        {
+            var destination = khoaBoNhoToanCuc(memory);
+            if (destination == IntPtr.Zero)
+                return IntPtr.Zero;
+
+            try
+            {
+                Marshal.Copy(text.ToCharArray(), 0, destination, text.Length);
+                Marshal.WriteInt16(destination, byteCount, 0);
+            }
+            finally
+            {
+                moKhoaBoNhoToanCuc(memory);
+            }
+
+            complete = true;
+            return memory;
+        }
+        finally
+        {
+            if (!complete)
+                giaiPhongBoNhoToanCuc(memory);
+        }
+    }
+
+    private ReplaceResult thuThayClipboard(ClipboardIdentity identity, string message)
+    {
+        var memory = taoVanBanClipboard(message);
+        try
+        {
+            if (!moClipboard(Handle))
+                return ReplaceResult.Busy;
+
+            try
+            {
+                if (layDanhTinhClipboard() != identity)
+                    return ReplaceResult.Changed;
+                if (!lamTrongClipboard())
+                    return ReplaceResult.Failed;
+
+                // Clipboard vừa được xóa. Chỉ ghi thông báo và không khôi phục dữ liệu cũ.
+                copyOrigin = null;
+                if (memory == IntPtr.Zero || datDuLieuClipboard(UnicodeText, memory) == IntPtr.Zero)
+                    return ReplaceResult.Cleared;
+
+                memory = IntPtr.Zero;
+                return ReplaceResult.Replaced;
+            }
+            finally
+            {
+                dongClipboard();
+            }
+        }
+        finally
+        {
+            if (memory != IntPtr.Zero)
+                giaiPhongBoNhoToanCuc(memory);
+        }
+    }
+
+    private void ghiNhatKy(string application, AuditBehavior behavior, DlpAction outcome, string? ruleId, string detail)
     {
         addAuditEvent(new AuditEvent(
-            DateTimeOffset.UtcNow, application, AuditBehavior.Clipboard, outcome, ruleId, detail));
+            DateTimeOffset.UtcNow, application, behavior, outcome, ruleId, detail));
     }
 
     private static string layTenUngDung(nint owner)
@@ -303,9 +380,9 @@ internal sealed class ClipboardMonitor : NativeWindow, IDisposable
         }
     }
 
-    private sealed record CopyOrigin(uint Sequence, string Path);
-    private readonly record struct ClipboardSnapshot(uint Sequence, nint Owner, string? Text);
-    private enum ClearResult { Cleared, Busy, Changed, Failed }
+    private readonly record struct ClipboardIdentity(uint Sequence, nint Owner);
+    private readonly record struct ClipboardSnapshot(ClipboardIdentity Identity, bool HasImage, bool HasText, string? Text);
+    private enum ReplaceResult { Replaced, Cleared, Busy, Changed, Failed }
 
     [DllImport("user32.dll", EntryPoint = "AddClipboardFormatListener", ExactSpelling = true, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -339,6 +416,9 @@ internal sealed class ClipboardMonitor : NativeWindow, IDisposable
     [DllImport("user32.dll", EntryPoint = "IsClipboardFormatAvailable", ExactSpelling = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool coDinhDangClipboard(uint format);
+
+    [DllImport("user32.dll", EntryPoint = "RegisterClipboardFormatW", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    private static extern uint dangKyDinhDangClipboard(string name);
 
     [DllImport("user32.dll", EntryPoint = "GetClipboardData", ExactSpelling = true)]
     private static extern nint layDuLieuClipboard(uint format);

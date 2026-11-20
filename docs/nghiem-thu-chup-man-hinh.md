@@ -17,7 +17,7 @@ Trình xem đối chiếu SHA-256 của dữ liệu đang hiển thị với nh�
 3. Chọn thư mục trên trang quản lý và chờ hai nhãn xuất hiện. Đặt trình xem trên màn hình nền dễ nhận biết. Mỗi lần thử, xác nhận đọc được văn bản trong trình xem trước khi bấm phím hoặc mở công cụ. Ghi trường hợp nội dung chưa hiển thị vào cột thực tế và thử lại khi phân loại đã xong.
 4. Với **PrintScreen**, đưa trình xem lên trước rồi nhấn phím. Nếu ảnh đi vào clipboard, dán vào Paint để xem. Nếu phím mở Snipping Tool, hoàn tất vùng chụp bao gồm trình xem và ghi rõ hành vi này.
 5. Với **Win+Shift+S**, đưa trình xem lên trước, bấm tổ hợp phím và chọn vùng bao phủ trình xem. Mở bản xem trước hoặc dán ảnh vào Paint.
-6. Với **Snipping Tool**, mở trực tiếp từ Start, chọn **New** rồi chọn vùng bao phủ trình xem. Mở bản xem trước và kiểm tra chữ trong ảnh.
+6. Với **Snipping Tool**, mở từ Start, chọn **New** rồi chọn vùng bao phủ trình xem. Thử cả chế độ tự sao chép và nút **Copy** trong bản xem trước. Khi thử quy tắc chặn, chờ sự kiện **Chụp màn hình** rồi dán vào Paint và Notepad. Paint không được nhận ảnh vừa chụp. Notepad nhận thông báo nếu agent đã thay nội dung clipboard. Bấm **Copy** lần nữa trong Snipping Tool và lặp lại. Đối chiếu thời gian, kết quả và ID rule với từng lần ảnh được đưa lên clipboard.
 7. Lặp lại cả ba cách với từng tài liệu khi bật và khi tắt bảo vệ. Chờ thanh trạng thái của trình xem cập nhật sau mỗi lần đổi cài đặt. Ghi số lần thử, nội dung có xuất hiện trong ảnh hay không và lưu ảnh của bài thử bằng dữ liệu tổng hợp, hoặc ghi lại các bước cùng kết quả cụ thể.
 
 ## Ma trận ứng dụng và cách chụp
@@ -39,6 +39,8 @@ Phiên bản/build Windows, phiên bản Snipping Tool và cấu hình PrintScre
 | Trình xem Repo DLP | Snipping Tool trực tiếp | Chưa đo | Nội bộ | Tắt | Ảnh có nội dung tài liệu | Chưa thử |
 | Trình xem Repo DLP | Snipping Tool trực tiếp | Chưa đo | Thông thường | Tắt | Ảnh có nội dung tài liệu | Chưa thử |
 
-Chỉ ghi **Chặn thành công** sau khi thao tác bị chặn hoặc đã kiểm tra ảnh và thấy nội dung cần bảo vệ vắng mặt. Lỗi của công cụ, chế độ không được hỗ trợ và các lần chưa chạy được ghi bằng trạng thái riêng. Trạng thái Windows đã nhận yêu cầu chỉ xác nhận kết quả gọi API.
+Ghi riêng kết quả chặn phím chụp, loại nội dung khỏi ảnh và chặn dán ảnh qua clipboard. Để xác nhận ảnh đã loại khỏi clipboard, đối chiếu nhật ký và thử dán sau khi agent xử lý. Lỗi của công cụ, chế độ không được hỗ trợ và các lần chưa chạy được ghi bằng trạng thái riêng. Trạng thái Windows đã nhận yêu cầu chỉ xác nhận kết quả gọi API.
 
-Trình xem ghi sự kiện thực tế khi nhận được PrintScreen hoặc Win+Shift+S lúc nó ở tiền cảnh. Nhật ký cho biết policy **Cho qua** hoặc sự kiện **Chỉ quan sát**, ghi ID rule nếu có và chưa xác minh ảnh thu được. Khi mở Snipping Tool trực tiếp, tiến hành đối chiếu bằng ảnh theo bước 6. Trình xem chưa nhận diện tự động cách mở này.
+Với phím chụp của trình xem đang ở tiền cảnh, **Đã chặn** ghi nhận phím đã bị agent chặn. Với Snipping Tool, kết quả **Đã chặn** ở bước clipboard ghi nhận agent đã loại được ảnh của lượt sao chép đó. Kiểm tra riêng ảnh trong bản xem trước hoặc ảnh đã lưu ra đĩa để nghiệm thu cơ chế loại trừ cửa sổ của Windows.
+
+Khi thử Snipping Tool, giữ tài liệu có nhãn mở và hiển thị trong trình xem Repo DLP. Agent nhận diện SnippingTool, ScreenClippingHost hoặc ScreenSketch. Khi Windows không cung cấp tên chủ clipboard, agent kiểm tra ứng dụng tiền cảnh. Clipboard không cung cấp tọa độ vùng chụp. Vì vậy khi tài liệu bảo vệ đang hiển thị, ảnh từ công cụ đã nhận diện có thể bị loại cả khi người dùng chọn vùng khác. Khi trình xem đã đóng hoặc thu nhỏ, bước này không xác định được tài liệu nguồn. Làm đối chứng bằng một ảnh sao chép từ ứng dụng vẽ, một tài liệu thường và một lượt tắt bảo vệ.

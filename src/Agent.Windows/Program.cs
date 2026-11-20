@@ -50,7 +50,8 @@ internal static class Program
             canhBao.thongBao(suKien);
         }
 
-        using var clipboard = new ClipboardMonitor(runtime.danhGiaClipboard, ghiNhatKy);
+        using var clipboard = new ClipboardMonitor(runtime.danhGiaClipboard, ghiNhatKy,
+            DocumentViewer.layChinhSachAnhClipboard);
         using var boChonThuMuc = new BoChonThuMuc(() => runtime.Settings.ScanDirectory);
         var dashboard = LocalDashboard.khoiDongAsync(runtime, boChonThuMuc.chonThuMucAsync)
             .GetAwaiter().GetResult();
@@ -70,6 +71,7 @@ internal static class Program
         finally
         {
             DocumentViewer.dongTaiLieu();
+            DocumentViewer.dungTheoDoiChupManHinh();
             dashboard.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
     }

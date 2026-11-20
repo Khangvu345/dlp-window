@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -17,25 +18,60 @@ internal sealed class ScreenshotShortcutMonitor : IDisposable
     private const int Alt = 0x12;
     private const int LeftWindows = 0x5B;
     private const int RightWindows = 0x5C;
+    private const int AltDownFlag = 0x20;
     private const uint RootWindow = 2;
     private const uint ExcludeFromCapture = 0x11;
+    private const uint CloakedWindow = 14;
 
-    private readonly nint window;
-    private readonly Action<string> observe;
+    private readonly Func<nint> getDocumentWindow;
+    private readonly Func<bool> shouldBlock;
+    private readonly Action<string, bool> observe;
+    private readonly Action releaseSuppressedKeys;
     private readonly KeyboardCallback callback;
     private nint hook;
-    private bool printScreenDown;
-    private bool letterSDown;
+    private TrangThaiPhim printScreenState;
+    private TrangThaiPhim letterSState;
 
-    public ScreenshotShortcutMonitor(nint window, Action<string> observe)
+    public ScreenshotShortcutMonitor(Func<nint> getDocumentWindow, Func<bool> shouldBlock,
+        Action<string, bool> observe, Action releaseSuppressedKeys)
     {
-        this.window = window;
+        this.getDocumentWindow = getDocumentWindow;
+        this.shouldBlock = shouldBlock;
         this.observe = observe;
+        this.releaseSuppressedKeys = releaseSuppressedKeys;
         callback = xuLyPhim;
         hook = datHookBanPhim(KeyboardHook, callback, layModule(null), 0);
     }
 
     public bool IsActive => hook != 0;
+
+    public bool DangChoNha => printScreenState == TrangThaiPhim.DaChan || letterSState == TrangThaiPhim.DaChan;
+
+    public static bool laCuaSoDangHien(nint window) =>
+        laCuaSoHien(window) && !laCuaSoThuNho(window) &&
+        (layThuocTinhDwm(window, CloakedWindow, out uint cloaked, sizeof(uint)) != 0 || cloaked == 0);
+
+    public static bool laUngDungChup(string application) =>
+        application.Equals("SnippingTool", StringComparison.OrdinalIgnoreCase) ||
+        application.Equals("ScreenClippingHost", StringComparison.OrdinalIgnoreCase) ||
+        application.Equals("ScreenSketch", StringComparison.OrdinalIgnoreCase);
+
+    public static bool tienCanhLaUngDungChup()
+    {
+        var foreground = layCuaSoTienCanh();
+        if (foreground == 0 || layTienTrinhCuaSo(foreground, out uint processId) == 0)
+            return false;
+
+        try
+        {
+            using var process = Process.GetProcessById(checked((int)processId));
+            return laUngDungChup(process.ProcessName);
+        }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException or Win32Exception)
+        {
+            return false;
+        }
+    }
 
     public static bool datBaoVeCuaSo(nint window, bool exclude, out string reason)
     {
@@ -64,38 +100,63 @@ internal sealed class ScreenshotShortcutMonitor : IDisposable
 
     private nint xuLyPhim(int code, nint message, nint data)
     {
-        try
+        if (code == 0)
         {
-            if (code >= 0)
+            int key = Marshal.ReadInt32(data);
+            if (key is PrintScreen or LetterS)
             {
-                int key = Marshal.ReadInt32(data);
-                if (key is PrintScreen or LetterS) ghiNhanNeuLaPhimChup(key, (int)message);
+                bool wasSuppressed = DangChoNha;
+                bool blocked = xuLyTrangThaiPhim(key, (int)message, data);
+                if (wasSuppressed && !DangChoNha) releaseSuppressedKeys();
+                if (blocked) return 1;
             }
-        }
-        catch (Exception error)
-        {
-            Trace.WriteLine($"Không ghi nhận được phím chụp ({error.GetType().Name}).");
         }
 
         return goiHookKeTiep(hook, code, message, data);
     }
 
-    private void ghiNhanNeuLaPhimChup(int key, int message)
+    private bool xuLyTrangThaiPhim(int key, int message, nint data)
     {
-        ref bool pressed = ref (key == PrintScreen ? ref printScreenDown : ref letterSDown);
+        ref TrangThaiPhim state = ref (key == PrintScreen ? ref printScreenState : ref letterSState);
         if (message is KeyUp or SysKeyUp)
         {
-            pressed = false;
-            return;
+            var previous = state;
+            state = TrangThaiPhim.DaNha;
+            // Một số cấu hình Windows chỉ chuyển sự kiện PrintScreen khi nhả phím.
+            return previous == TrangThaiPhim.DaChan ||
+                (previous == TrangThaiPhim.DaNha && key == PrintScreen && kiemTraPhimChup(key, data));
         }
-        if (message is not (KeyDown or SysKeyDown) || pressed) return;
-        pressed = true;
+        if (message is not (KeyDown or SysKeyDown)) return false;
+        if (state == TrangThaiPhim.DaNha)
+            state = kiemTraPhimChup(key, data) ? TrangThaiPhim.DaChan : TrangThaiPhim.DaChuyenTiep;
+        return state == TrangThaiPhim.DaChan;
+    }
 
-        if (layCuaSoTienCanh() != window || dangNhan(Control) || dangNhan(Alt)) return;
+    private bool kiemTraPhimChup(int key, nint data)
+    {
+        var window = getDocumentWindow();
+        if (window == 0 || layCuaSoTienCanh() != window) return false;
+
         bool windowsDown = dangNhan(LeftWindows) || dangNhan(RightWindows);
         bool shiftDown = dangNhan(Shift);
-        if (key == PrintScreen && !windowsDown && !shiftDown) observe("PrintScreen");
-        if (key == LetterS && windowsDown && shiftDown) observe("Win+Shift+S");
+        bool controlDown = dangNhan(Control);
+        bool altDown = (Marshal.ReadInt32(data, 2 * sizeof(int)) & AltDownFlag) != 0 || dangNhan(Alt);
+        if (key == LetterS && (!windowsDown || !shiftDown || controlDown || altDown))
+            return false;
+
+        string method = key == LetterS ? "Win+Shift+S" : string.Concat(
+            windowsDown ? "Win+" : "", controlDown ? "Ctrl+" : "", altDown ? "Alt+" : "",
+            shiftDown ? "Shift+" : "", "PrintScreen");
+        bool blocked = shouldBlock();
+        try
+        {
+            observe(method, blocked);
+        }
+        catch (Exception error)
+        {
+            Trace.WriteLine($"Không ghi nhận được phím chụp ({error.GetType().Name}).");
+        }
+        return blocked;
     }
 
     private static bool dangNhan(int key) => (layTrangThaiPhim(key) & 0x8000) != 0;
@@ -107,6 +168,8 @@ internal sealed class ScreenshotShortcutMonitor : IDisposable
         hook = 0;
         GC.KeepAlive(callback);
     }
+
+    private enum TrangThaiPhim { DaNha, DaChuyenTiep, DaChan }
 
     [UnmanagedFunctionPointer(CallingConvention.Winapi)]
     private delegate nint KeyboardCallback(int code, nint message, nint data);
@@ -135,6 +198,17 @@ internal sealed class ScreenshotShortcutMonitor : IDisposable
 
     [DllImport("user32.dll", EntryPoint = "GetAncestor")]
     private static extern nint layCuaSoGoc(nint window, uint flag);
+
+    [DllImport("user32.dll", EntryPoint = "IsWindowVisible")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool laCuaSoHien(nint window);
+
+    [DllImport("user32.dll", EntryPoint = "IsIconic")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool laCuaSoThuNho(nint window);
+
+    [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")]
+    private static extern int layThuocTinhDwm(nint window, uint attribute, out uint value, uint size);
 
     [DllImport("user32.dll", EntryPoint = "SetWindowDisplayAffinity", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

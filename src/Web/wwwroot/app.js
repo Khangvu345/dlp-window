@@ -25,7 +25,8 @@ const chiTietClipboard = {
   "read-failed": "Lỗi đọc clipboard",
   "no-text": "Clipboard không có văn bản",
   "clipboard-changed": "Clipboard đã thay đổi",
-  "clear-failed": "Không xóa được clipboard"
+  "clear-failed": "Không xóa được clipboard",
+  "notice-failed": "Đã xóa nội dung nhưng không ghi được thông báo thay thế"
 };
 
 const trangThaiKetNoi = document.querySelector("#state");
