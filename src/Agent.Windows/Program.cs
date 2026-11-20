@@ -39,6 +39,7 @@ internal static class Program
 
     private static void chayPhien(DlpRuntime runtime)
     {
+        using var clipboard = new ClipboardMonitor(runtime.danhGiaClipboard, runtime.ghiSuKien);
         var dashboard = LocalDashboard.StartAsync().GetAwaiter().GetResult();
         try
         {
