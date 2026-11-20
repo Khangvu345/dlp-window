@@ -69,14 +69,15 @@
 
       <section id="policy" aria-labelledby="page-title" hidden>
         <form id="policy-form" novalidate>
+          <div class="scope-switch" role="group" aria-label="Nhóm quy tắc">
+            <button type="button" data-scope="classification" aria-pressed="true">Phân loại tài liệu</button>
+            <button type="button" data-scope="clipboard" aria-pressed="false">Clipboard</button>
+            <button type="button" data-scope="screenshot" aria-pressed="false">Chụp màn hình</button>
+          </div>
           <div class="panel-toolbar">
-            <div>
-              <h2>Quy tắc đang áp dụng</h2>
-              <p>Phiên bản <span id="policy-version" class="mono">—</span></p>
-            </div>
+            <p id="scope-help"></p>
             <button type="button" id="add-rule" class="secondary">Thêm quy tắc</button>
           </div>
-          <p class="policy-help">Quy tắc có số ưu tiên cao hơn được xét trước.</p>
           <div id="rules" class="rules"></div>
           <div class="actions">
             <button type="button" id="validate-policy" class="secondary">Kiểm tra quy tắc</button>
@@ -120,15 +121,7 @@
     <fieldset class="rule">
       <legend></legend>
       <div class="rule-grid">
-        <label>ID quy tắc<input data-field="id" type="text" required autocomplete="off" spellcheck="false"></label>
-        <label>Phạm vi
-          <select data-field="scope">
-            <option value="classification">Phân loại tài liệu</option>
-            <option value="clipboard">Clipboard</option>
-            <option value="screenshot">Chụp màn hình</option>
-          </select>
-        </label>
-        <label>Ưu tiên<input data-field="priority" type="number" step="1" required></label>
+        <input data-field="scope" type="hidden">
         <label>Kiểu điều kiện<select data-field="kind"></select></label>
         <label class="rule-pattern"><span data-pattern-label>Điều kiện</span><input data-field="pattern" type="text" required autocomplete="off" spellcheck="false"></label>
         <label data-label-field>Gán nhãn<input data-field="label" type="text" required autocomplete="off"></label>
@@ -140,6 +133,13 @@
           </select>
         </label>
       </div>
+      <details class="advanced">
+        <summary>Tùy chọn nâng cao</summary>
+        <div class="rule-grid">
+          <label>ID trong nhật ký<input data-field="id" required></label>
+          <label>Ưu tiên khi nhiều quy tắc khớp<input data-field="priority" type="number" step="1" required></label>
+        </div>
+      </details>
       <div class="rule-footer">
         <p class="rule-error status-message" role="status" hidden></p>
         <button type="button" class="secondary remove-rule">Xóa quy tắc</button>

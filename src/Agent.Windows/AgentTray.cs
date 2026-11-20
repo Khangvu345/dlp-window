@@ -8,10 +8,22 @@ internal sealed class AgentTray : ApplicationContext
     private readonly NotifyIcon icon;
     private readonly Uri address;
 
-    public AgentTray(Uri address, Action? openDocument = null)
+    public AgentTray(Uri address, Action? openDocument = null, Func<Task>? chonThuMuc = null)
     {
         this.address = address;
         menu.Items.Add("Mở trang quản lý", null, (_, _) => moTrangQuanLy());
+        if (chonThuMuc is not null)
+            menu.Items.Add("Chọn thư mục quét…", null, async (_, _) =>
+            {
+                try
+                {
+                    await chonThuMuc();
+                }
+                catch (Exception loi)
+                {
+                    MessageBox.Show(loi.Message, "Không thể chọn thư mục", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            });
         if (openDocument is not null)
             menu.Items.Add("Mở tài liệu thử", null, (_, _) => openDocument());
         menu.Items.Add("Thoát agent", null, (_, _) => ExitThread());
