@@ -123,7 +123,8 @@
       <div class="rule-grid">
         <input data-field="scope" type="hidden">
         <label>Kiểu điều kiện<select data-field="kind"></select></label>
-        <label class="rule-pattern"><span data-pattern-label>Điều kiện</span><input data-field="pattern" type="text" required autocomplete="off" spellcheck="false"></label>
+        <label class="rule-pattern" data-text-pattern><span data-pattern-label>Điều kiện</span><input data-field="pattern" type="text" required autocomplete="off" spellcheck="false"></label>
+        <label class="rule-pattern" data-source-field hidden>Nhãn nguồn<select data-field="sourceLabel" required disabled></select></label>
         <label data-label-field>Gán nhãn<input data-field="label" type="text" required autocomplete="off"></label>
         <label data-action-field>Kết quả
           <select data-field="action">

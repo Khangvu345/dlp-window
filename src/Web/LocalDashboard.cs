@@ -145,7 +145,10 @@ public sealed class LocalDashboard : IAsyncDisposable
     }
 
     private sealed record SettingsResponse(AgentSettings Settings, string? ScanError, bool HasFolderPicker);
-    private sealed record PolicyResponse(PolicyDefinition Policy, string PolicyVersion);
+    private sealed record PolicyResponse(PolicyDefinition Policy, string PolicyVersion)
+    {
+        public string DefaultLabel => CompiledPolicy.DefaultLabel;
+    }
 
     private static void dangKyTaiNguyen(WebApplication app, string path, string filename, string mime)
     {
