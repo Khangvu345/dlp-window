@@ -95,6 +95,8 @@ try
             "Khởi động lại phải giữ đúng phiên bản policy và hash.");
         yeuCau(!reopened.Settings.ProtectionEnabled && reopened.Settings.ScanDirectory == documents.FullName,
             "Cấu hình đã lưu không được nạp đúng khi khởi động lại.");
+        yeuCau(reopened.laySuKien(gioiHan: 1) is [{ Behavior: AuditBehavior.Screenshot, Result: DlpAction.Observe }],
+            "Nhật ký trên máy phải lấy đúng sự kiện mới nhất từ SQLite sau khi mở lại.");
         var entries = reopened.laySuKien(now, now.AddMinutes(1), AuditBehavior.Clipboard);
         yeuCau(entries is [{ RuleId: "clipboard-internal", Result: DlpAction.Block }] &&
             reopened.laySuKien(now, now.AddMinutes(1)).Count == 1 &&

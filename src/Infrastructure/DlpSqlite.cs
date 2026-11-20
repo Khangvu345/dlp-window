@@ -150,7 +150,7 @@ internal sealed class DlpSqlite : IDisposable
     }
 
     internal IReadOnlyList<AuditEvent> laySuKien(DateTimeOffset? fromUtc,
-        DateTimeOffset? untilUtc, AuditBehavior? behavior)
+        DateTimeOffset? untilUtc, AuditBehavior? behavior, int gioiHan)
     {
         using var command = taoLenh("""
             SELECT occurred_utc_ticks, application, behavior, result, rule_id, detail
@@ -158,8 +158,9 @@ internal sealed class DlpSqlite : IDisposable
             WHERE ($from IS NULL OR occurred_utc_ticks >= $from)
               AND ($until IS NULL OR occurred_utc_ticks < $until)
               AND ($behavior IS NULL OR behavior = $behavior)
-            ORDER BY occurred_utc_ticks DESC, id DESC;
+            ORDER BY occurred_utc_ticks DESC, id DESC LIMIT $gioihan;
             """);
+        command.Parameters.AddWithValue("$gioihan", gioiHan);
         command.Parameters.AddWithValue("$from", (object?)fromUtc?.UtcTicks ?? DBNull.Value);
         command.Parameters.AddWithValue("$until", (object?)untilUtc?.UtcTicks ?? DBNull.Value);
         command.Parameters.AddWithValue("$behavior", behavior is null ? (object)DBNull.Value : (int)behavior);

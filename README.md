@@ -13,6 +13,12 @@ dotnet run --project src/Agent.Windows
 
 Mở vùng biểu tượng ẩn cạnh đồng hồ Windows, tìm **Repo DLP**, nhấp đúp hoặc nhấp phải và chọn **Mở trang quản lý**. Trình duyệt mở địa chỉ `http://127.0.0.1:<cổng>/` do Windows cấp cho phiên này. Chọn **Thoát agent** để đóng cả tray và web.
 
+### Thử cảnh báo và nhật ký trên máy cài agent
+
+1. Nhấp phải biểu tượng **Repo DLP** cạnh đồng hồ và chọn **Thử popup cảnh báo**. Hộp thoại Windows hiển thị trên màn hình của phiên đang chạy agent. Bấm **OK** để đóng. Lần thử này không ghi sự kiện vi phạm.
+2. Chọn **Xem nhật ký trên máy** để xem 200 sự kiện gần nhất. Cửa sổ đọc SQLite tại `%LOCALAPPDATA%\RepoDlp\index.sqlite3` và cập nhật khi có sự kiện mới.
+3. Với bảo vệ đang bật và policy mẫu, gõ chuỗi giả `123456789012` trong Notepad rồi chọn chuỗi và nhấn Ctrl+C. Kiểm tra hộp thoại **Repo DLP · Đã chặn** và dòng Clipboard có ID **clipboard-fake-12-digits**. Đóng hộp thoại rồi lặp lại thao tác để kiểm tra lần cảnh báo tiếp theo.
+
 ## Cấu trúc mã nguồn
 
 | Đường dẫn | Trách nhiệm |

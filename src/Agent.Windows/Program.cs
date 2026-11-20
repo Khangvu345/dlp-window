@@ -40,11 +40,13 @@ internal static class Program
 
     private static void chayPhien(DlpRuntime runtime)
     {
+        using var nhatKy = new NhatKyTrenMay(() => runtime.laySuKien(gioiHan: 200));
         using var canhBao = new CanhBaoViPham();
 
         void ghiNhatKy(AuditEvent suKien)
         {
             runtime.ghiSuKien(suKien);
+            nhatKy.danhDauThayDoi();
             canhBao.thongBao(suKien);
         }
 
@@ -55,7 +57,7 @@ internal static class Program
         try
         {
             using var tray = new AgentTray(
-                dashboard.Address,
+                dashboard.Address, nhatKy.moNhatKy, canhBao.thuCanhBao,
                 () => DocumentViewer.moTaiLieu(runtime.danhGiaChupManHinh, ghiNhatKy, clipboard.saoChepTuTaiLieu),
                 async () =>
                 {
