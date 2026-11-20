@@ -250,12 +250,12 @@ public sealed class DlpRuntime : IAsyncDisposable
     }
 
     public IReadOnlyList<AuditEvent> laySuKien(DateTimeOffset? fromUtc = null,
-        DateTimeOffset? untilUtc = null, AuditBehavior? behavior = null)
+        DateTimeOffset? untilUtc = null, AuditBehavior? behavior = null, int gioiHan = -1)
     {
         lock (stateLock)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
-            return index.laySuKien(fromUtc, untilUtc, behavior);
+            return index.laySuKien(fromUtc, untilUtc, behavior, gioiHan);
         }
     }
 

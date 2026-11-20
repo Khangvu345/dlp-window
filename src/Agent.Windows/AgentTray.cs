@@ -8,10 +8,12 @@ internal sealed class AgentTray : ApplicationContext
     private readonly NotifyIcon icon;
     private readonly Uri address;
 
-    public AgentTray(Uri address, Action? openDocument = null, Func<Task>? chonThuMuc = null)
+    public AgentTray(Uri address, Action moNhatKy, Action thuCanhBao, Action? openDocument = null, Func<Task>? chonThuMuc = null)
     {
         this.address = address;
         menu.Items.Add("Mở trang quản lý", null, (_, _) => moTrangQuanLy());
+        menu.Items.Add("Xem nhật ký trên máy", null, (_, _) => moNhatKy());
+        menu.Items.Add("Thử popup cảnh báo", null, (_, _) => thuCanhBao());
         if (chonThuMuc is not null)
             menu.Items.Add("Chọn thư mục quét…", null, async (_, _) =>
             {
