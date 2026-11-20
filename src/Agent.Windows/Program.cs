@@ -1,3 +1,4 @@
+using RepoDlp.Core;
 using RepoDlp.Infrastructure;
 using RepoDlp.Web;
 
@@ -39,7 +40,15 @@ internal static class Program
 
     private static void chayPhien(DlpRuntime runtime)
     {
-        using var clipboard = new ClipboardMonitor(runtime.danhGiaClipboard, runtime.ghiSuKien);
+        using var canhBao = new CanhBaoViPham();
+
+        void ghiNhatKy(AuditEvent suKien)
+        {
+            runtime.ghiSuKien(suKien);
+            canhBao.thongBao(suKien);
+        }
+
+        using var clipboard = new ClipboardMonitor(runtime.danhGiaClipboard, ghiNhatKy);
         using var boChonThuMuc = new BoChonThuMuc(() => runtime.Settings.ScanDirectory);
         var dashboard = LocalDashboard.khoiDongAsync(runtime, boChonThuMuc.chonThuMucAsync)
             .GetAwaiter().GetResult();
@@ -47,7 +56,7 @@ internal static class Program
         {
             using var tray = new AgentTray(
                 dashboard.Address,
-                () => DocumentViewer.moTaiLieu(runtime.danhGiaChupManHinh, runtime.ghiSuKien, clipboard.saoChepTuTaiLieu),
+                () => DocumentViewer.moTaiLieu(runtime.danhGiaChupManHinh, ghiNhatKy, clipboard.saoChepTuTaiLieu),
                 async () =>
                 {
                     var duongDan = await boChonThuMuc.chonThuMucAsync(CancellationToken.None);
