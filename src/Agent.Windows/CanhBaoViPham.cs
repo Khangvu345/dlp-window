@@ -19,14 +19,12 @@ internal sealed class CanhBaoViPham : IDisposable
 
     public void thongBao(AuditEvent suKien)
     {
-        if (suKien.Result == DlpAction.Allow) return;
+        if (!suKien.canHienCanhBao()) return;
         bool daChan = suKien.Result == DlpAction.Block;
         string hanhVi = suKien.Behavior == AuditBehavior.Clipboard ? "Sao chép" : "Chụp màn hình";
         string thongDiep = daChan
             ? "Thao tác đã bị chặn theo chính sách. Vui lòng liên hệ quản trị viên (admin) nếu cần hỗ trợ."
-            : suKien.RuleId is null
-                ? "Hệ thống đã ghi nhận thao tác này để kiểm tra."
-                : "Hệ thống đã ghi nhận vi phạm này trong nhật ký.";
+            : "Hệ thống đã ghi nhận vi phạm này trong nhật ký.";
         choHien.Writer.TryWrite((daChan ? "Repo DLP · Đã chặn" : "Repo DLP · Chỉ quan sát",
             $"{hanhVi} · {suKien.Application}\n\n{thongDiep}"));
     }

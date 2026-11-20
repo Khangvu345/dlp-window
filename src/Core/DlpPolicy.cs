@@ -29,7 +29,11 @@ public sealed record AuditEvent(
     AuditBehavior Behavior,
     DlpAction Result,
     string? RuleId,
-    string? Detail);
+    string? Detail)
+{
+    public bool canHienCanhBao() =>
+        !string.IsNullOrWhiteSpace(RuleId) && Result is DlpAction.Block or DlpAction.Observe;
+}
 
 public sealed record DocumentClassification(
     string Path,

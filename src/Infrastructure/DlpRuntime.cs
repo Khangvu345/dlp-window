@@ -18,6 +18,7 @@ public sealed class DlpRuntime : IAsyncDisposable
     private CompiledPolicy activePolicy;
     private string? scanError;
     private long scanGeneration;
+    private long phienCauHinh;
     private bool scanReady;
     private CancellationTokenSource? scanCancellation;
     private Task scanning = Task.CompletedTask;
@@ -95,6 +96,8 @@ public sealed class DlpRuntime : IAsyncDisposable
         get { lock (stateLock) return activePolicy.Version; }
     }
 
+    public long PhienCauHinh => Interlocked.Read(ref phienCauHinh);
+
     public string? ScanError
     {
         get { lock (stateLock) return scanError; }
@@ -124,6 +127,7 @@ public sealed class DlpRuntime : IAsyncDisposable
             lock (stateLock)
             {
                 this.settings = updated;
+                Interlocked.Increment(ref phienCauHinh);
                 if (restart)
                     datLaiTrangThaiQuet();
             }
@@ -164,6 +168,7 @@ public sealed class DlpRuntime : IAsyncDisposable
             lock (stateLock)
             {
                 activePolicy = compiled;
+                Interlocked.Increment(ref phienCauHinh);
                 datLaiTrangThaiQuet();
             }
             await dungBoQuetAsync().ConfigureAwait(false);
@@ -228,16 +233,41 @@ public sealed class DlpRuntime : IAsyncDisposable
         lock (stateLock)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
-            if (!settings.ProtectionEnabled)
+            if (!thuocThuMucBaoVe(sourcePath) || !activePolicy.Definition.Rules.Any(r => r.Scope == RuleScope.Screenshot))
                 return new DlpDecision(DlpAction.Allow, null);
 
-            var document = timTaiLieuTrongKhoa(sourcePath);
-            if (document?.Status != ClassificationStatus.Classified || document.Sha256 is null
-                || !string.Equals(document.Sha256, expectedSha256, StringComparison.OrdinalIgnoreCase))
-                return null;
-
-            return activePolicy.danhGiaChupManHinh(document.Label);
+            var nhan = timNhanDungPhienBan(sourcePath, expectedSha256);
+            return nhan is null ? null : activePolicy.danhGiaChupManHinh(nhan);
         }
+    }
+
+    public bool coTheSaoChepTaiLieu(string path, string sha256)
+    {
+        lock (stateLock)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            return !thuocThuMucBaoVe(path) ||
+                !activePolicy.Definition.Rules.Any(r => r.Scope == RuleScope.Clipboard && r.Kind == RuleKind.Label) ||
+                timNhanDungPhienBan(path, sha256) is not null;
+        }
+    }
+
+    private string? timNhanDungPhienBan(string? path, string sha256)
+    {
+        var taiLieu = timTaiLieuTrongKhoa(path);
+        return taiLieu is { Status: ClassificationStatus.Classified, Sha256: not null } &&
+            string.Equals(taiLieu.Sha256, sha256, StringComparison.OrdinalIgnoreCase) ? taiLieu.Label : null;
+    }
+
+    private bool thuocThuMucBaoVe(string? path)
+    {
+        if (!settings.ProtectionEnabled || settings.ScanDirectory is not { } thuMuc ||
+            string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path))
+            return false;
+
+        string tuongDoi = Path.GetRelativePath(thuMuc, path);
+        return !Path.IsPathRooted(tuongDoi) && tuongDoi is not ("." or "..") &&
+            !tuongDoi.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
     }
 
     public void ghiSuKien(AuditEvent entry)

@@ -11,3 +11,4 @@ Test dùng `ClipboardMonitor` thật, clipboard Win32 thật và thao tác dán 
 - Sao chép hai lần từ nguồn được nhận diện. Mỗi lần đọc và dán cảnh báo hai lượt, với đúng một sự kiện chặn.
 - Ghi bitmap kèm văn bản và PNG kèm văn bản trong hai lần riêng. Mỗi ảnh bị xóa, cảnh báo thay thế có thể đọc và dán hai lần, với đúng một sự kiện chặn ảnh.
 - Cho qua bitmap và PNG kèm văn bản. Hình ảnh, byte PNG và chú thích vẫn đọc được. Sự kiện cuối ghi nhận cho qua.
+- Ghi ảnh thuần khi chưa xác định được nguồn chụp, khi nguồn được nhận diện nhưng chưa có quy tắc khớp và khi có quy tắc chỉ quan sát. Kiểm tra nội dung ảnh, hành vi, ID và quyết định hiển thị cảnh báo. Kiểm tra hộp thoại Windows thực tế bằng các bước trong [bảng kiểm Snipping Tool](../../docs/nghiem-thu-chup-man-hinh.md).

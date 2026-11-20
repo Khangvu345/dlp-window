@@ -51,18 +51,21 @@ internal static class Program
     {
         var nhatKy = new List<AuditEvent>();
         var duongDan = Path.GetFullPath("du-lieu-thu.txt");
-        bool chanAnh = true;
+        DlpDecision? quyTacAnh = new(DlpAction.Block, QuyTacAnhChan);
 
         using var khungDan = new TextBox();
         _ = khungDan.Handle;
+        bool quanSatChu = false;
         var clipboard = new ClipboardMonitor((nguon, noiDung) =>
-            nguon == duongDan && noiDung == DuLieuBaoVe
-                ? new DlpDecision(DlpAction.Block, QuyTacVanBan)
-                : new DlpDecision(DlpAction.Allow, null),
+        {
+            if (nguon == duongDan && noiDung == DuLieuBaoVe)
+                return new DlpDecision(DlpAction.Block, QuyTacVanBan);
+            if (quanSatChu && noiDung == VanBanKemAnh)
+                return new DlpDecision(DlpAction.Observe, "smoke-quan-sat-chu");
+            return new DlpDecision(DlpAction.Allow, null);
+        },
             nhatKy.Add,
-            _ => chanAnh
-                ? new DlpDecision(DlpAction.Block, QuyTacAnhChan)
-                : new DlpDecision(DlpAction.Allow, QuyTacAnhQua));
+            _ => quyTacAnh);
 
         try
         {
@@ -91,12 +94,36 @@ internal static class Program
             kiemTraAnhDaXoa();
             kiemTraDanHaiLan(khungDan, AnhBiChan, nhatKy, 4);
 
-            chanAnh = false;
+            quyTacAnh = new DlpDecision(DlpAction.Allow, QuyTacAnhQua);
             datAnhVaText(khungDan.Handle, anh, png);
             kiemTraSuKien(nhatKy, 5, AuditBehavior.Screenshot, DlpAction.Allow, QuyTacAnhQua);
             kiemTra(ClipboardThu.anhVaPngConNguyen(khungDan.Handle, anh, png),
                 "Ảnh được cho qua đã đổi pixel hoặc byte PNG.");
             kiemTraDanHaiLan(khungDan, VanBanKemAnh, nhatKy, 5);
+
+            foreach (var (quyetDinh, hanhVi) in new (DlpDecision?, AuditBehavior)[]
+            {
+                (null, AuditBehavior.Clipboard),
+                (new(DlpAction.Allow, null), AuditBehavior.Screenshot),
+                (new(DlpAction.Observe, "smoke-quan-sat-anh"), AuditBehavior.Screenshot)
+            })
+            {
+                quyTacAnh = quyetDinh;
+                int soLuong = nhatKy.Count + 1;
+                choDenKhi(() => ClipboardThu.thuDatAnhVaText(khungDan.Handle, null, anh, png), "Ghi ảnh không kèm chữ");
+                kiemTraSuKien(nhatKy, soLuong, hanhVi, quyetDinh?.Action ?? DlpAction.Allow, quyetDinh?.RuleId);
+                kiemTra(nhatKy[^1].canHienCanhBao() == (quyetDinh?.Action == DlpAction.Observe) &&
+                    ClipboardThu.anhVaPngConNguyen(khungDan.Handle, anh, png), "Sai cảnh báo hoặc ảnh bị thay đổi.");
+            }
+
+            quanSatChu = true;
+            quyTacAnh = new DlpDecision(DlpAction.Allow, null);
+            int soTruoc = nhatKy.Count;
+            datAnhVaText(khungDan.Handle, anh, png);
+            kiemTraSuKien(nhatKy, soTruoc + 2, AuditBehavior.Clipboard, DlpAction.Observe, "smoke-quan-sat-chu");
+            kiemTra(nhatKy[soTruoc] is { Behavior: AuditBehavior.Screenshot, Result: DlpAction.Allow, RuleId: null } &&
+                !nhatKy[soTruoc].canHienCanhBao() && nhatKy[^1].canHienCanhBao(),
+                "Ảnh cho qua đã làm mất hoặc tạo trùng cảnh báo của quy tắc văn bản.");
         }
         finally
         {
@@ -116,7 +143,7 @@ internal static class Program
         kiemTra(!ClipboardThu.coBitmap() && !ClipboardThu.coPng(), "Clipboard vẫn giữ định dạng ảnh đã bị chặn.");
 
     private static void kiemTraSuKien(IReadOnlyList<AuditEvent> nhatKy, int soLuong,
-        AuditBehavior hanhVi, DlpAction ketQua, string maQuyTac)
+        AuditBehavior hanhVi, DlpAction ketQua, string? maQuyTac)
     {
         choDenKhi(() => nhatKy.Count >= soLuong, $"Chờ nhật ký cho {maQuyTac}");
         kiemTra(nhatKy.Count == soLuong && nhatKy[^1].Behavior == hanhVi &&
