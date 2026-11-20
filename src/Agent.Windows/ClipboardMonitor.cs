@@ -161,8 +161,9 @@ internal sealed class ClipboardMonitor : NativeWindow, IDisposable
             if (screenshot is not null)
                 ghiNhatKy(application, AuditBehavior.Screenshot, screenshot.Action, screenshot.RuleId,
                     ScreenshotDetail);
-            else
-                ghiNhatKy(application, AuditBehavior.Clipboard, clipboard?.Action ?? DlpAction.Observe,
+            if (screenshot is null || clipboard?.RuleId is not null || (snapshot.HasText && clipboard is null))
+                ghiNhatKy(application, AuditBehavior.Clipboard,
+                    clipboard?.Action ?? (snapshot.HasText ? DlpAction.Observe : DlpAction.Allow),
                     clipboard?.RuleId, clipboard is not null
                         ? source
                         : source + (snapshot.HasText ? " read-failed" : " no-text"));

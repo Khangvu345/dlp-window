@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using RepoDlp.Core;
+using RepoDlp.Infrastructure;
 
 namespace RepoDlp.Agent.Windows;
 
@@ -13,9 +14,9 @@ internal sealed class DocumentViewer : Form
     private readonly string documentPath;
     private readonly string documentSha256;
     private readonly string documentText;
-    private readonly Func<string?, string, DlpDecision?> evaluateScreenshot;
+    private readonly DlpRuntime runtime;
     private readonly Action<AuditEvent> writeAudit;
-    private readonly Func<string, string, bool>? copyFromDocument;
+    private readonly Func<string, string, bool> copyFromDocument;
     private readonly RichTextBox document = new()
     {
         Dock = DockStyle.Fill,
@@ -29,21 +30,21 @@ internal sealed class DocumentViewer : Form
     private readonly System.Windows.Forms.Timer policyTimer = new() { Interval = 350 };
     private Task pendingAudit = Task.CompletedTask;
     private DlpDecision? decision;
+    private long phienDaDanhGia = -1;
     private bool refreshPending;
     private bool excluded;
     private bool visibleText;
     private string affinityStatus = "Đang kiểm tra policy";
 
-    private DocumentViewer(string path, byte[] bytes,
-        Func<string?, string, DlpDecision?> evaluateScreenshot, Action<AuditEvent> writeAudit,
-        Func<string, string, bool>? copyFromDocument)
+    private DocumentViewer(string path, byte[] bytes, DlpRuntime runtime,
+        Action<AuditEvent> writeAudit, Func<string, string, bool> copyFromDocument)
     {
         documentPath = path;
         documentSha256 = Convert.ToHexString(SHA256.HashData(bytes));
         using var reader = new StreamReader(new MemoryStream(bytes), new UTF8Encoding(false, true),
             detectEncodingFromByteOrderMarks: true);
         documentText = reader.ReadToEnd();
-        this.evaluateScreenshot = evaluateScreenshot;
+        this.runtime = runtime;
         this.writeAudit = writeAudit;
         this.copyFromDocument = copyFromDocument;
 
@@ -67,8 +68,8 @@ internal sealed class DocumentViewer : Form
         policyTimer.Tick += (_, _) => capNhatPolicy();
     }
 
-    public static void moTaiLieu(Func<string?, string, DlpDecision?> evaluateScreenshot,
-        Action<AuditEvent> writeAudit, Func<string, string, bool>? copyFromDocument = null)
+    public static void moTaiLieu(DlpRuntime runtime, Action<AuditEvent> writeAudit,
+        Func<string, string, bool> copyFromDocument)
     {
         using var picker = new OpenFileDialog
         {
@@ -81,8 +82,7 @@ internal sealed class DocumentViewer : Form
         var path = Path.GetFullPath(picker.FileName);
         try
         {
-            var viewer = new DocumentViewer(path, File.ReadAllBytes(path), evaluateScreenshot,
-                writeAudit, copyFromDocument);
+            var viewer = new DocumentViewer(path, File.ReadAllBytes(path), runtime, writeAudit, copyFromDocument);
             dongTaiLieu();
             activeViewer = viewer;
             viewer.Show();
@@ -110,23 +110,27 @@ internal sealed class DocumentViewer : Form
 
     public static DlpDecision? layChinhSachAnhClipboard(string tenUngDung)
     {
-        if (activeViewer is not { visibleText: true, IsHandleCreated: true } viewer ||
-            !ScreenshotShortcutMonitor.laCuaSoDangHien(viewer.Handle))
-            return null;
-
         if (!ScreenshotShortcutMonitor.laUngDungChup(tenUngDung) &&
             (tenUngDung != ClipboardMonitor.UnknownApplication || !ScreenshotShortcutMonitor.tienCanhLaUngDungChup()))
             return null;
 
-        return viewer.evaluateScreenshot(viewer.documentPath, viewer.documentSha256);
+        if (activeViewer is not { visibleText: true, IsHandleCreated: true } viewer ||
+            !ScreenshotShortcutMonitor.laCuaSoDangHien(viewer.Handle))
+            return new DlpDecision(DlpAction.Allow, null);
+
+        return viewer.runtime.danhGiaChupManHinh(viewer.documentPath, viewer.documentSha256)
+            ?? new DlpDecision(DlpAction.Observe, null);
     }
+
+    private DlpDecision? layQuyetDinhHienHanh() =>
+        phienDaDanhGia == runtime.PhienCauHinh ? decision : null;
 
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
         shortcuts ??= new ScreenshotShortcutMonitor(
             () => activeViewer is { IsHandleCreated: true } viewer ? viewer.Handle : 0,
-            () => activeViewer?.decision?.Action == DlpAction.Block,
+            () => activeViewer?.layQuyetDinhHienHanh()?.Action == DlpAction.Block,
             (method, blocked) => activeViewer?.ghiNhanPhimChup(method, blocked),
             dungTheoDoiKhiKhongCan);
         capNhatPolicy();
@@ -139,8 +143,10 @@ internal sealed class DocumentViewer : Form
         refreshPending = true;
         try
         {
-            var current = await Task.Run(() => evaluateScreenshot(documentPath, documentSha256));
-            if (IsDisposed) return;
+            long phien = runtime.PhienCauHinh;
+            var current = await Task.Run(() => runtime.danhGiaChupManHinh(documentPath, documentSha256));
+            if (IsDisposed || phien != runtime.PhienCauHinh) return;
+            phienDaDanhGia = phien;
             decision = current;
             if (current is null)
             {
@@ -214,14 +220,9 @@ internal sealed class DocumentViewer : Form
         string selectedText = document.SelectedText;
         try
         {
-            if (evaluateScreenshot(documentPath, documentSha256) is null)
+            if (!runtime.coTheSaoChepTaiLieu(documentPath, documentSha256))
             {
-                hienNoiDung(false);
-                return;
-            }
-            if (copyFromDocument is null)
-            {
-                Clipboard.SetText(selectedText);
+                status.Text = "Chờ nhãn của phiên bản đang mở để sao chép. Hãy mở lại nếu tệp đã thay đổi.";
                 return;
             }
             if (copyFromDocument(documentPath, selectedText)) return;
@@ -237,11 +238,12 @@ internal sealed class DocumentViewer : Form
 
     private void ghiNhanPhimChup(string method, bool blocked)
     {
+        var quyetDinh = blocked ? decision : layQuyetDinhHienHanh();
         DlpAction result = blocked ? DlpAction.Block
-            : decision?.Action == DlpAction.Allow && !excluded ? DlpAction.Allow : DlpAction.Observe;
+            : quyetDinh?.Action == DlpAction.Allow ? DlpAction.Allow : DlpAction.Observe;
         string detail = blocked ? "Đã chặn sự kiện phím chụp" : $"{affinityStatus} · Chưa xác minh ảnh thu được";
         var entry = new AuditEvent(DateTimeOffset.UtcNow, ApplicationName, AuditBehavior.Screenshot,
-            result, decision?.RuleId, $"{method} · {detail}");
+            result, quyetDinh?.RuleId, $"{method} · {detail}");
 
         // Đưa thao tác ghi SQLite ra khỏi luồng xử lý phím của Windows.
         pendingAudit = pendingAudit.ContinueWith(_ =>

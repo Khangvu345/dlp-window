@@ -11,7 +11,7 @@ internal static class ClipboardThu
     private const uint BoNhoDiDong = 0x0002;
     private static readonly uint DinhDangPng = dangKyDinhDangClipboard("PNG");
 
-    public static bool thuDatAnhVaText(nint cuaSo, string vanBan, Bitmap? bitmap, byte[]? png)
+    public static bool thuDatAnhVaText(nint cuaSo, string? vanBan, Bitmap? bitmap, byte[]? png)
     {
         if (!moClipboard(cuaSo))
             return false;
@@ -20,7 +20,8 @@ internal static class ClipboardThu
         {
             if (!xoaClipboard())
                 throw baoLoi("Xóa clipboard thử");
-            datByte(DinhDangUnicode, Encoding.Unicode.GetBytes(vanBan + '\0'));
+            if (vanBan is not null)
+                datByte(DinhDangUnicode, Encoding.Unicode.GetBytes(vanBan + '\0'));
             if (bitmap is not null)
                 datBitmap(bitmap);
             if (png is not null)

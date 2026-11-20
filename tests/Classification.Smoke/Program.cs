@@ -26,6 +26,10 @@ try
     string hash;
     await using (var runtime = DlpRuntime.khoiDong(data.FullName))
     {
+        var choQua = new DlpDecision(DlpAction.Allow, null);
+        string internalHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(internalPath)));
+        yeuCau(runtime.danhGiaChupManHinh(internalPath, internalHash) == choQua,
+            "Chưa chọn thư mục phải cho qua dù nội dung khớp từ khóa mẫu.");
         await runtime.capNhatCauHinhAsync(new AgentSettings(documents.FullName, true));
         await doiDieuKienAsync(() => runtime.layDanhSachTaiLieu().Count == 3, "quét ban đầu");
         yeuCau(runtime.timTaiLieu(internalPath) is { Label: "Nội bộ", RuleId: "classify-internal" },
@@ -43,9 +47,35 @@ try
             "Nội dung thường trong tài liệu thường phải được cho qua.");
         yeuCau(runtime.danhGiaChupManHinh(internalPath, "hash-khong-khop") is null,
             "Không được dùng nhãn cho dữ liệu có hash khác.");
-        string internalHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(internalPath)));
+        var ngoaiThuMuc = Path.Combine(documents.FullName + "-khac", "internal.txt");
+        var duongDanVong = Path.Combine(documents.FullName, "..", Path.GetFileName(documents.FullName) + "-khac", "internal.txt");
+        yeuCau(runtime.danhGiaChupManHinh(ngoaiThuMuc, internalHash) == choQua &&
+            runtime.danhGiaChupManHinh(duongDanVong, internalHash) == choQua &&
+            runtime.danhGiaChupManHinh(publicPath, runtime.timTaiLieu(publicPath)!.Sha256!) == choQua &&
+            runtime.danhGiaChupManHinh(corruptPath, internalHash) is null,
+            "Sai phạm vi khi có thư mục trùng tiền tố, nhãn khác hoặc file lỗi.");
         yeuCau(runtime.danhGiaChupManHinh(internalPath, internalHash) ==
             new DlpDecision(DlpAction.Block, "screenshot-internal"), "Không áp quy tắc chụp màn hình cho hash khớp.");
+
+        var policyMau = runtime.Policy;
+        var chiPhanLoaiVaClipboard = new PolicyDefinition(policyMau.Rules.Where(r => r.Scope != RuleScope.Screenshot).ToArray());
+        long phienCoQuyTacChup = runtime.PhienCauHinh;
+        yeuCau((await runtime.capNhatChinhSachAsync(chiPhanLoaiVaClipboard)).Count == 0 &&
+            runtime.PhienCauHinh != phienCoQuyTacChup &&
+            runtime.danhGiaChupManHinh(internalPath, "hash-cu") == choQua &&
+            !runtime.coTheSaoChepTaiLieu(internalPath, "hash-cu"),
+            "Gỡ quy tắc chụp phải bỏ bảo vệ ảnh và vẫn kiểm tra phiên bản cho quy tắc sao chép theo nhãn.");
+        foreach (var ketQua in new[] { DlpAction.Observe, DlpAction.Allow, DlpAction.Block })
+        {
+            var quyTacChup = new PolicyDefinition(policyMau.Rules.Select(r => r.Scope == RuleScope.Screenshot
+                ? r with { Action = ketQua } : r).ToArray());
+            yeuCau((await runtime.capNhatChinhSachAsync(quyTacChup)).Count == 0, "Không đổi được quy tắc chụp.");
+            await doiDieuKienAsync(() => runtime.danhGiaChupManHinh(internalPath, internalHash) ==
+                new DlpDecision(ketQua, "screenshot-internal"), "áp lại quy tắc chụp theo nhãn");
+            var suKien = new AuditEvent(now, "SnippingTool", AuditBehavior.Screenshot, ketQua, "screenshot-internal", null);
+            yeuCau(suKien.canHienCanhBao() == (ketQua != DlpAction.Allow) &&
+                !(suKien with { RuleId = null }).canHienCanhBao(), "Popup sai với kết quả hoặc ID quy tắc chụp.");
+        }
 
         File.WriteAllText(internalPath, "Bỏ từ khóa");
         await doiDieuKienAsync(() => runtime.timTaiLieu(internalPath)?.Label == "Thông thường", "đổi nội dung");
@@ -83,7 +113,10 @@ try
             DlpAction.Block, "clipboard-internal", "source-known"));
         runtime.ghiSuKien(new AuditEvent(now.AddMinutes(1), "Demo", AuditBehavior.Screenshot,
             DlpAction.Observe, null, null));
+        long phienDangBat = runtime.PhienCauHinh;
         await runtime.capNhatCauHinhAsync(runtime.Settings with { ProtectionEnabled = false });
+        yeuCau(runtime.PhienCauHinh != phienDangBat && runtime.danhGiaChupManHinh(renamedPath, hash) == choQua,
+            "Tắt bảo vệ phải cho chụp ngay cả khi nhãn khớp.");
         yeuCau(runtime.danhGiaClipboard(renamedPath, "012345678901").Action == DlpAction.Allow,
             "Clipboard vẫn bị chặn khi tắt bảo vệ.");
     }
@@ -105,8 +138,14 @@ try
 
         await reopened.capNhatCauHinhAsync(reopened.Settings with { ScanDirectory = secondDirectory.FullName });
         await doiDieuKienAsync(() => reopened.timTaiLieu(secondPath)?.Label == "Nội bộ", "đổi thư mục quét");
+        await reopened.capNhatCauHinhAsync(reopened.Settings with { ProtectionEnabled = true });
+        yeuCau(reopened.danhGiaChupManHinh(renamedPath, hash) == new DlpDecision(DlpAction.Allow, null),
+            "Đường dẫn cũ vẫn dùng quy tắc chụp sau khi đổi thư mục.");
         yeuCau(reopened.timTaiLieu(renamedPath) is null && reopened.layDanhSachTaiLieu().Count == 1,
             "Thư mục cũ còn trả về nhãn sau khi đổi thư mục quét.");
+        await reopened.capNhatCauHinhAsync(reopened.Settings with { ScanDirectory = null });
+        yeuCau(reopened.danhGiaChupManHinh(secondPath, hash) == new DlpDecision(DlpAction.Allow, null),
+            "Bỏ thư mục phải cho qua tài liệu đã có nhãn trong phiên.");
     }
 
     var allFormats = Directory.CreateDirectory(Path.Combine(root.FullName, "formats"));

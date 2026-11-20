@@ -59,7 +59,7 @@ internal static class Program
         {
             using var tray = new AgentTray(
                 dashboard.Address, nhatKy.moNhatKy, canhBao.thuCanhBao,
-                () => DocumentViewer.moTaiLieu(runtime.danhGiaChupManHinh, ghiNhatKy, clipboard.saoChepTuTaiLieu),
+                () => DocumentViewer.moTaiLieu(runtime, ghiNhatKy, clipboard.saoChepTuTaiLieu),
                 async () =>
                 {
                     var duongDan = await boChonThuMuc.chonThuMucAsync(CancellationToken.None);

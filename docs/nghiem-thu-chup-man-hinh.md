@@ -20,6 +20,26 @@ Trình xem đối chiếu SHA-256 của dữ liệu đang hiển thị với nh�
 6. Với **Snipping Tool**, mở từ Start, chọn **New** rồi chọn vùng bao phủ trình xem. Thử cả chế độ tự sao chép và nút **Copy** trong bản xem trước. Khi thử quy tắc chặn, chờ sự kiện **Chụp màn hình** rồi dán vào Paint và Notepad. Paint không được nhận ảnh vừa chụp. Notepad nhận thông báo nếu agent đã thay nội dung clipboard. Bấm **Copy** lần nữa trong Snipping Tool và lặp lại. Đối chiếu thời gian, kết quả và ID rule với từng lần ảnh được đưa lên clipboard.
 7. Lặp lại cả ba cách với từng tài liệu khi bật và khi tắt bảo vệ. Chờ thanh trạng thái của trình xem cập nhật sau mỗi lần đổi cài đặt. Ghi số lần thử, nội dung có xuất hiện trong ảnh hay không và lưu ảnh của bài thử bằng dữ liệu tổng hợp, hoặc ghi lại các bước cùng kết quả cụ thể.
 
+## Các trường hợp biên của Snipping Tool
+
+Dùng **Start → Snipping Tool → New** trên máy cài agent. Mỗi lượt chụp một vùng có dấu hiệu riêng để nhận ra ảnh mới khi dán vào Paint. Ghi riêng việc ảnh còn dán được, popup trên desktop và ID quy tắc trong nhật ký. Mở ứng dụng chụp hoặc bấm **Cancel** trước khi chụp đều không tạo vi phạm. Bảng dưới ghi kết quả mong đợi cho ảnh thuần, với tài liệu thử mở trong trình xem Repo DLP.
+
+| Điều kiện lúc ảnh được đưa vào clipboard | Dán vào Paint sau khi agent xử lý | Popup |
+| --- | --- | --- |
+| Chưa chọn thư mục, kể cả khi TXT có cụm `Tài liệu nội bộ` | Có ảnh | Không |
+| Có thư mục nhưng TXT nằm ngoài, kể cả thư mục bên cạnh có tên cùng tiền tố | Có ảnh | Không |
+| Đã phân loại **Nội bộ**, chỉ có quy tắc gán nhãn hoặc clipboard | Có ảnh | Không |
+| Quy tắc chụp áp cho nhãn khác, hoặc khớp với hành động **Cho qua** | Có ảnh | Không |
+| Quy tắc chụp khớp và **Chỉ quan sát** | Có ảnh | Cảnh báo đã ghi nhận, nhật ký có ID quy tắc chụp |
+| Quy tắc chụp khớp và **Chặn**, agent loại được ảnh | Không dán được ảnh vừa chụp | Cảnh báo đã chặn và liên hệ admin, nhật ký có ID quy tắc chụp |
+| Đã tắt bảo vệ, bỏ thư mục, đổi sang thư mục khác hoặc gỡ quy tắc chụp | Có ảnh ở lượt chụp mới | Không |
+
+Để kiểm tra trường hợp **chưa có quy tắc chụp**, xem danh sách quy tắc đang áp dụng. Lần khởi tạo đầu có sẵn `screenshot-internal`. Trên cấu hình thử, gỡ quy tắc chụp, giữ quy tắc gán nhãn và lưu trước khi thử. Có thể thử cả lượt bỏ thư mục khi TXT vẫn đang mở. Chờ trạng thái trình xem cập nhật, chụp lại rồi mới dán. Thay đổi cấu hình không khôi phục ảnh đã bị xóa khỏi clipboard.
+
+Nếu đang chờ phân loại hoặc bản đang mở lệch SHA-256 trong thư mục có quy tắc chụp, trình xem tạm ẩn nội dung. Nếu đã sửa tệp, mở lại để kiểm tra phiên bản mới. Một sự kiện kỹ thuật thiếu ID quy tắc chỉ ghi nhật ký. Lỗi xóa ảnh khi đã khớp quy tắc **Chặn** ghi **Chỉ quan sát** cùng ID và lý do xử lý. Trường hợp này cần kiểm tra ảnh thực tế.
+
+Với dữ liệu hỗn hợp có ảnh và văn bản, phần chữ vẫn chịu quy tắc clipboard. Ví dụ, regex 12 chữ số có thể tạo cảnh báo **Sao chép** dù chưa chọn thư mục. Đối chiếu hành vi và ID để xác định quy tắc nào đã kích hoạt.
+
 ## Ma trận ứng dụng và cách chụp
 
 Phiên bản/build Windows, phiên bản Snipping Tool và cấu hình PrintScreen được điền khi chạy trên máy Windows. Các dòng dưới đây chưa chạy trong phiên Windows của lần triển khai này.
