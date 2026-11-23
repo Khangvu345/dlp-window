@@ -23,6 +23,8 @@ public sealed record AgentSettings(string? ScanDirectory, bool ProtectionEnabled
 
 public sealed record DlpDecision(DlpAction Action, string? RuleId);
 
+public sealed record KetQuaClipboard(DlpDecision QuyetDinh, string ChiTiet);
+
 public sealed record AuditEvent(
     DateTimeOffset OccurredAtUtc,
     string Application,

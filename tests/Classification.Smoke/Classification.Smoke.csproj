@@ -4,6 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Infrastructure/Infrastructure.csproj" />
+    <Compile Include="../../src/Agent.Windows/NguonChrome.cs" Link="NguonChrome.cs" />
     <EmbeddedResource Include="../Scan.Smoke/Fixtures/*.pdf" LogicalName="MauPhanLoai.%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

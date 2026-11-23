@@ -5,7 +5,10 @@
     <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Core/Core.csproj" />
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WPF" />
+    <ProjectReference Include="../../src/Infrastructure/Infrastructure.csproj" />
     <Compile Include="../../src/Agent.Windows/ClipboardMonitor.cs" Link="ClipboardMonitor.cs" />
+    <Compile Include="../../src/Agent.Windows/NguonChrome.cs" Link="NguonChrome.cs" />
+    <Compile Include="../../src/Agent.Windows/NguonNotepad.cs" Link="NguonNotepad.cs" />
   </ItemGroup>
 </Project>

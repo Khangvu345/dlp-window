@@ -105,7 +105,45 @@ public sealed class CompiledPolicy
     }
 
     public DlpDecision danhGiaClipboard(string? sourceLabel, string text) =>
-        danhGia(RuleScope.Clipboard, text, sourceLabel);
+        danhGiaChiTietClipboard(sourceLabel, text).QuyetDinh;
+
+    public KetQuaClipboard danhGiaChiTietClipboard(string? nhan, string noiDung)
+    {
+        int soRegex = 0;
+        int soNhanBoQua = 0;
+        int soQuaHan = 0;
+        foreach (var muc in orderedRules)
+        {
+            var quyTac = muc.Definition;
+            if (quyTac.Scope != RuleScope.Clipboard) continue;
+            if (quyTac.Kind == RuleKind.Label && nhan is null)
+            {
+                soNhanBoQua++;
+                continue;
+            }
+
+            if (quyTac.Kind == RuleKind.Regex) soRegex++;
+            if (!muc.khop(noiDung, nhan, out bool quaHan))
+            {
+                if (quaHan) soQuaHan++;
+                continue;
+            }
+
+            string dieuKien = quyTac.Kind == RuleKind.Label ? "nhãn nguồn" : "regex";
+            return new(new DlpDecision(quyTac.Action!.Value, quyTac.Id),
+                $"Khớp {dieuKien} · Ưu tiên {quyTac.Priority}" + moTaKiemTra());
+        }
+
+        return new(new DlpDecision(DlpAction.Allow, null), "Cho qua mặc định" + moTaKiemTra());
+
+        string moTaKiemTra()
+        {
+            string chiTiet = $" · Đã xét {soRegex} regex";
+            if (soNhanBoQua > 0) chiTiet += $" · Thiếu nhãn nguồn để xét {soNhanBoQua} quy tắc";
+            if (soQuaHan > 0) chiTiet += $" · {soQuaHan} regex hết thời gian kiểm tra";
+            return chiTiet;
+        }
+    }
 
     public DlpDecision danhGiaChupManHinh(string? sourceLabel) =>
         danhGia(RuleScope.Screenshot, null, sourceLabel);
@@ -119,32 +157,35 @@ public sealed class CompiledPolicy
     private PolicyRule? timQuyTacKhop(RuleScope scope, string? text, string? label)
     {
         foreach (var rule in orderedRules)
-            if (rule.Definition.Scope == scope && rule.khop(text, label))
+            if (rule.Definition.Scope == scope && rule.khop(text, label, out _))
                 return rule.Definition;
         return null;
     }
 
     private sealed record CompiledRule(PolicyRule Definition, Regex? Regex)
     {
-        public bool khop(string? text, string? label)
+        public bool khop(string? text, string? label, out bool quaHan)
         {
+            quaHan = false;
             return Definition.Kind switch
             {
                 RuleKind.Label => string.Equals(label, Definition.Pattern, StringComparison.OrdinalIgnoreCase),
                 RuleKind.Keyword => text?.Contains(Definition.Pattern, StringComparison.OrdinalIgnoreCase) == true,
-                RuleKind.Regex => khopRegex(text),
+                RuleKind.Regex => khopRegex(text, out quaHan),
                 _ => false
             };
         }
 
-        private bool khopRegex(string? text)
+        private bool khopRegex(string? text, out bool quaHan)
         {
+            quaHan = false;
             try
             {
                 return text is not null && Regex!.IsMatch(text);
             }
             catch (RegexMatchTimeoutException)
             {
+                quaHan = true;
                 return false;
             }
         }

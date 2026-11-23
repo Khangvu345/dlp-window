@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Drawing.Imaging;
 using RepoDlp.Agent.Windows;
 using RepoDlp.Core;
+using RepoDlp.Infrastructure;
 
 namespace RepoDlp.WindowsClipboard.Smoke;
 
@@ -37,6 +38,7 @@ internal static class Program
         try
         {
             chayKiemTra();
+            kiemTraChinhSachDangChay();
             Console.WriteLine("PASS — Sao chép bị chặn hai lần, dán lặp không thêm log, ảnh bitmap và PNG bị chặn, ảnh được cho qua giữ nguyên.");
             return 0;
         }
@@ -59,10 +61,10 @@ internal static class Program
         var clipboard = new ClipboardMonitor((nguon, noiDung) =>
         {
             if (nguon == duongDan && noiDung == DuLieuBaoVe)
-                return new DlpDecision(DlpAction.Block, QuyTacVanBan);
+                return new(new DlpDecision(DlpAction.Block, QuyTacVanBan), "Khớp nhãn nguồn");
             if (quanSatChu && noiDung == VanBanKemAnh)
-                return new DlpDecision(DlpAction.Observe, "smoke-quan-sat-chu");
-            return new DlpDecision(DlpAction.Allow, null);
+                return new(new DlpDecision(DlpAction.Observe, "smoke-quan-sat-chu"), "Khớp regex");
+            return new(new DlpDecision(DlpAction.Allow, null), "Cho qua mặc định");
         },
             nhatKy.Add,
             _ => quyTacAnh);
@@ -129,6 +131,51 @@ internal static class Program
         {
             clipboard.Dispose();
             Clipboard.Clear();
+        }
+    }
+
+    private static void kiemTraChinhSachDangChay()
+    {
+        var goc = Directory.CreateTempSubdirectory("dlp-policy-clipboard-");
+        try
+        {
+            var thuMuc = Directory.CreateDirectory(Path.Combine(goc.FullName, "van-ban"));
+            var tep = Path.Combine(thuMuc.FullName, "thu.txt");
+            File.WriteAllText(tep, "Tài liệu nội bộ");
+            var runtime = DlpRuntime.khoiDong(Path.Combine(goc.FullName, "cau-hinh"));
+            try
+            {
+                runtime.capNhatCauHinhAsync(new AgentSettings(thuMuc.FullName, true)).GetAwaiter().GetResult();
+                choDenKhi(() => runtime.timTaiLieu(tep)?.Label == "Nội bộ", "Chờ nhãn thật của tệp");
+                using var khung = new TextBox();
+                using var monitor = new ClipboardMonitor(runtime.danhGiaChiTietClipboard, runtime.ghiSuKien);
+                choDenKhi(() => monitor.saoChepTuTaiLieu(tep, DuLieuBaoVe), "Sao chép từ tệp có nhãn");
+                kiemTraKetQua(1, DlpAction.Block, "clipboard-internal", VanBanBiChan);
+                choDenKhi(() => ClipboardThu.thuDatAnhVaText(khung.Handle, "123456789012", null, null), "Ghi chuỗi số thử");
+                kiemTraKetQua(2, DlpAction.Block, "clipboard-fake-12-digits", VanBanBiChan);
+                choDenKhi(() => ClipboardThu.thuDatAnhVaText(khung.Handle, DuLieuBaoVe, null, null), "Ghi câu thường");
+                kiemTraKetQua(3, DlpAction.Allow, null, DuLieuBaoVe);
+
+                void kiemTraKetQua(int soDong, DlpAction ketQua, string? id, string vanBan)
+                {
+                    choDenKhi(() => runtime.laySuKien().Count >= soDong, "Chờ nhật ký SQLite");
+                    var dong = runtime.laySuKien();
+                    kiemTra(dong.Count == soDong && dong[0].Result == ketQua && dong[0].RuleId == id,
+                        "Kết quả hoặc ID quy tắc không khớp thao tác.");
+                    khung.Clear();
+                    khung.Paste();
+                    kiemTra(khung.Text == vanBan, "Nội dung dán sau khi agent xử lý sai.");
+                }
+            }
+            finally
+            {
+                runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        }
+        finally
+        {
+            Clipboard.Clear();
+            goc.Delete(true);
         }
     }
 
