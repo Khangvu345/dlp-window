@@ -18,8 +18,9 @@ string choSave = Path.Combine(thuMuc, "dang-luu.txt");
 string doiTen = Path.Combine(thuMuc, "da-doi-ten.txt");
 string thuMucCu = Path.Combine(thuMuc, "cu.pdf");
 string thuMucMoi = Path.Combine(thuMuc, "moi");
-string tepConCu = Path.Combine(thuMucCu, "con.txt");
-string tepConMoi = Path.Combine(thuMucMoi, "con.txt");
+const string tenTepCon = "tai-lieu-con.txt";
+string tepConCu = Path.Combine(thuMucCu, tenTepCon);
+string tepConMoi = Path.Combine(thuMucMoi, tenTepCon);
 
 try
 {
@@ -65,6 +66,8 @@ try
 
         Directory.CreateDirectory(thuMucCu);
         await File.WriteAllTextAsync(tepConCu, "Tệp trong thư mục con", token);
+        kiemTra(Directory.EnumerateFiles(thuMucCu).Contains(tepConCu),
+            $"Không liệt kê được tệp mẫu vừa ghi trong thư mục thử: {tepConCu}");
         await doiKetQuaAsync(dotQuet, ketQua, () => ketQua.ContainsKey(tepConCu), token);
         Directory.Move(thuMucCu, thuMucMoi);
         await doiKetQuaAsync(dotQuet, ketQua, () => !ketQua.ContainsKey(tepConCu) && ketQua.ContainsKey(tepConMoi), token);
