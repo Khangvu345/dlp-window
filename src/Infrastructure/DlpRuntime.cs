@@ -201,20 +201,48 @@ public sealed class DlpRuntime : IAsyncDisposable
         }
     }
 
-    public DlpDecision danhGiaClipboard(string? sourcePath, string text)
+    public bool canTraNguonClipboard()
+    {
+        lock (stateLock)
+            return settings.ProtectionEnabled && settings.ScanDirectory is not null &&
+                activePolicy.Definition.Rules.Any(r => r.Scope == RuleScope.Clipboard && r.Kind == RuleKind.Label);
+    }
+
+    public DlpDecision danhGiaClipboard(string? sourcePath, string text) =>
+        danhGiaChiTietClipboard(sourcePath, text).QuyetDinh;
+
+    public KetQuaClipboard danhGiaChiTietClipboard(string? sourcePath, string text)
     {
         CompiledPolicy policy;
-        string? label;
+        string? nhan = null;
+        string nguon;
         lock (stateLock)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
-            if (!settings.ProtectionEnabled)
-                return new DlpDecision(DlpAction.Allow, null);
-
             policy = activePolicy;
-            label = timTaiLieuTrongKhoa(sourcePath)?.Label;
+            if (!settings.ProtectionEnabled)
+                return new(new DlpDecision(DlpAction.Allow, null), "Bảo vệ đang tắt · Bỏ qua kiểm tra clipboard");
+
+            if (settings.ScanDirectory is null)
+                nguon = "Chưa chọn thư mục bảo vệ để tra nhãn nguồn";
+            else if (sourcePath is null)
+                nguon = "Chưa xác định tệp nguồn";
+            else if (!thuocThuMucBaoVe(sourcePath))
+                nguon = "Tệp nguồn ngoài thư mục bảo vệ";
+            else
+            {
+                var taiLieu = timTaiLieuTrongKhoa(sourcePath);
+                nhan = taiLieu?.Label;
+                nguon = nhan is not null ? $"Nhãn nguồn «{nhan}»" : taiLieu?.Status switch
+                {
+                    ClassificationStatus.ReadError => "Tệp nguồn bị lỗi đọc",
+                    ClassificationStatus.NeedsOcr => "Tệp nguồn cần OCR",
+                    _ => "Tệp nguồn chưa có kết quả phân loại hiện hành"
+                };
+            }
         }
-        return policy.danhGiaClipboard(label, text);
+        var ketQua = policy.danhGiaChiTietClipboard(nhan, text);
+        return ketQua with { ChiTiet = $"{nguon} · {ketQua.ChiTiet} · Policy {policy.Version[..12]}" };
     }
 
     public DlpDecision danhGiaChupManHinh(string? sourcePath)

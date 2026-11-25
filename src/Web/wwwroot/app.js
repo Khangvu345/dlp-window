@@ -48,7 +48,7 @@ let nhanMacDinh;
 let phamViDangXem = "classification";
 const huongDanPhamVi = {
   classification: "Khi quét thư mục, agent đọc nội dung và tự gán nhãn cho tài liệu.",
-  clipboard: "Nhãn nguồn lấy từ mục Phân loại tài liệu. Regex kiểm tra riêng đoạn văn bản được sao chép, kể cả khi chưa rõ nguồn.",
+  clipboard: "Nhãn nguồn cần tệp đã phân loại. Agent tra đường dẫn từ trình xem Repo DLP, tab Notepad hoặc thông tin tệp cục bộ do Chrome cung cấp. Regex vẫn xét văn bản khi chưa rõ tệp.",
   screenshot: "Chọn hành động theo nhãn tài liệu mở trong trình xem Repo DLP."
 };
 
@@ -409,6 +409,9 @@ async function taiNhatKy() {
 
 function moTaSuKien(muc) {
   if (muc.behavior !== "clipboard" || !muc.detail) return muc.detail;
+  if (muc.detail === "source-unknown") return "Chưa xác định tệp nguồn · Bản ghi cũ chỉ lưu trạng thái nguồn";
+  const dau = muc.detail.split(" ", 1)[0];
+  if (!Object.hasOwn(chiTietClipboard, dau)) return muc.detail;
   return muc.detail.split(" ").map(ma => chiTietClipboard[ma] ?? ma).join(" · ");
 }
 

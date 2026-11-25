@@ -5,7 +5,7 @@ namespace RepoDlp.Agent.Windows;
 internal sealed class NhatKyTrenMay : Form
 {
     private readonly Func<IReadOnlyList<AuditEvent>> docSuKien;
-    private readonly ListView bang = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true };
+    private readonly ListView bang = new() { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, ShowItemToolTips = true };
     private readonly System.Windows.Forms.Timer lamMoi = new() { Interval = 1000 };
     private int coThayDoi = 1;
 
@@ -39,12 +39,17 @@ internal sealed class NhatKyTrenMay : Form
     private void capNhatBang()
     {
         if (Interlocked.Exchange(ref coThayDoi, 0) == 0) return;
-        var dong = docSuKien().Select(muc => new ListViewItem(new[] {
-            muc.OccurredAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss"), muc.Application,
-            muc.Behavior == AuditBehavior.Clipboard ? "Clipboard" : "Chụp màn hình",
-            muc.Result switch { DlpAction.Block => "Đã chặn", DlpAction.Observe => "Chỉ quan sát", _ => "Cho qua" },
-            muc.RuleId ?? "", muc.Detail ?? ""
-        })).ToArray();
+        var dong = docSuKien().Select(muc =>
+        {
+            string chiTiet = muc.Detail == "source-unknown"
+                ? "Chưa xác định tệp nguồn · Bản ghi cũ chỉ lưu trạng thái nguồn" : muc.Detail ?? "";
+            return new ListViewItem(new[] {
+                muc.OccurredAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss"), muc.Application,
+                muc.Behavior == AuditBehavior.Clipboard ? "Clipboard" : "Chụp màn hình",
+                muc.Result switch { DlpAction.Block => "Đã chặn", DlpAction.Observe => "Chỉ quan sát", _ => "Cho qua" },
+                muc.RuleId ?? "", chiTiet
+            }) { ToolTipText = chiTiet };
+        }).ToArray();
         bang.BeginUpdate();
         try
         {

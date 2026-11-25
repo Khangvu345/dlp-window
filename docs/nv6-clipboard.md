@@ -1,16 +1,44 @@
 # Nghiệm thu clipboard trên Windows
 
-Chạy agent trong phiên desktop Windows sau khi tích hợp trình xem văn bản của NV7. Lưu hai tệp UTF-8 trong thư mục quét và đợi web hiển thị nhãn.
+Chạy agent trong một phiên desktop Windows thử nghiệm. Ghi phiên bản Windows, Chrome và Notepad vào kết quả. Chọn thư mục quét có hai thư mục con dưới đây và chờ dashboard hiển thị đủ hai đường dẫn, nhãn và trạng thái **Đã phân loại**. Dùng policy mẫu và bật bảo vệ.
 
-| Tệp | Nội dung theo từng dòng | Nhãn mong đợi |
+| Tệp UTF-8 | Nội dung theo từng dòng | Nhãn mong đợi |
 |---|---|---|
-| `noi-bo.txt` | Tài liệu nội bộ<br>Hẹn gặp vào ngày mai. | Nội bộ |
-| `thuong.txt` | Hẹn gặp vào ngày mai.<br>123456789012 | Thông thường |
+| `phong-a\bao-cao.txt` | Tài liệu nội bộ<br>Hẹn gặp vào ngày mai. | Nội bộ |
+| `phong-b\bao-cao.txt` | Hẹn gặp vào ngày mai.<br>123456789012 | Thông thường |
 
-1. Bật bảo vệ. Mở hai tệp trong trình xem Repo DLP. Chọn đúng câu `Hẹn gặp vào ngày mai.` ở mỗi tệp rồi sao chép. Kiểm tra nhật ký clipboard trên web và dán vào Notepad sau khi sự kiện xuất hiện. Tệp Nội bộ cho kết quả chặn theo `clipboard-internal` và dán ra thông điệp cảnh báo. Tệp Thông thường cho kết quả cho qua và dán được câu.
-2. Sao chép riêng dòng `123456789012` từ trình xem của tệp Thông thường. Kiểm tra một sự kiện chặn với ID `clipboard-fake-12-digits`, sau đó dán vào Notepad hai lần. Cả hai lần phải hiện thông điệp cảnh báo. Sao chép lại chuỗi số rồi lặp lại phép thử. Hai lần sao chép phải tạo hai log chặn. Các lần dán thông điệp không tạo log chặn mới.
-3. Gõ và sao chép cùng chuỗi 12 chữ số giả từ Notepad. Kiểm tra kết quả chặn theo `clipboard-fake-12-digits` với chi tiết `source-unknown`. Agent dùng thông tin chủ sở hữu clipboard để tìm ứng dụng khi có thể.
-4. Tắt bảo vệ trên web, sao chép lại từ tệp Nội bộ và thử lại chuỗi 12 chữ số. Kiểm tra cả hai lần đều cho qua và dán được.
-5. Lọc hành vi Clipboard và đếm sự kiện chặn của từng lần thực hiện. Mỗi lần xóa thực tế sinh đúng một sự kiện chặn. Nhật ký chỉ chứa thời gian, ứng dụng, hành vi, kết quả, ID rule khi có và mô tả trạng thái nguồn/xử lý.
+Sao chép từng mẫu riêng, đợi agent xử lý rồi dán vào ô văn bản của một ứng dụng khác. Với ca **Đã chặn**, đóng hộp thoại nếu hiện lên và kiểm tra nội dung dán là `Nội dung sao chép đã bị chặn bởi Repo DLP.`. Với ca **Cho qua**, kiểm tra nội dung dán khớp đoạn đã chọn. Dùng một tài liệu đích trống và đối chiếu sự kiện theo thời gian trong mục **Nhật ký**, lọc hành vi **Clipboard**.
 
-Kết quả dán được ghi nhận sau khi agent xử lý clipboard. Trường hợp clipboard đã đổi hoặc xóa thất bại được ghi là chỉ quan sát. Bảng trên mô tả kết quả mong đợi để kiểm tra trên Windows.
+## Chrome
+
+Mở hai tệp trong hai tab Chrome bằng `Ctrl+O`. Địa chỉ mỗi tab phải là `file://` trỏ đến đúng tệp. Chọn câu `Hẹn gặp vào ngày mai.` trong nội dung trang rồi nhấn `Ctrl+C`. Lặp theo thứ tự tab Nội bộ, tab Thông thường, rồi trở lại tab Nội bộ. Agent đọc `SourceURL` trong định dạng clipboard HTML của Windows (`CF_HTML`) khi Chrome cung cấp URL nguồn tới tệp cục bộ. Hai tệp cùng tên giúp kiểm tra quyết định dựa trên đường dẫn đầy đủ.
+
+| Nguồn | Nội dung sao chép | Kết quả mong đợi |
+|---|---|---|
+| Tab tệp Nội bộ có `SourceURL` hợp lệ | Câu thường | **Đã chặn** với `clipboard-internal`. Dán ra thông báo. Nhật ký ghi đã xác định nguồn từ HTML clipboard. |
+| Tab tệp Thông thường có `SourceURL` hợp lệ | Cùng câu thường | **Cho qua**. Dán được nguyên câu. Nhật ký ghi đã xác định nguồn từ HTML clipboard. |
+| Tab tệp Thông thường | `123456789012` | **Đã chặn** với `clipboard-fake-12-digits`. Dán ra thông báo. |
+| Trang HTTPS thử nghiệm có sẵn | Câu thường, rồi `123456789012` | Câu thường **Cho qua**. Chuỗi số **Đã chặn** với `clipboard-fake-12-digits`. Nhật ký ghi lý do chưa xác định được tệp nguồn. |
+
+Nếu Chrome không đặt `CF_HTML` hoặc `SourceURL` cục bộ hợp lệ cho thao tác đã thử, ghi rõ lý do trên nhật ký và đánh dấu ca nhận diện nhãn chưa xác minh. Câu thường phải dán được và chuỗi 12 chữ số giả vẫn bị chặn bằng regex.
+
+## Notepad
+
+Mở hai tệp cùng tên trong hai tab của Notepad. Sao chép đúng câu thử từ tab Nội bộ, đợi agent xử lý, chuyển sang tab Thông thường rồi sao chép cùng câu, sau đó quay lại tab Nội bộ và lặp lại. Agent dùng đường dẫn tuyệt đối mà UI Automation cung cấp cho **tab đang chọn**, khi có thể đối chiếu vùng chọn với nội dung clipboard. Tên `bao-cao.txt` riêng lẻ không đủ để tra nhãn.
+
+| Nguồn | Nội dung sao chép | Kết quả mong đợi |
+|---|---|---|
+| Tab Nội bộ cung cấp đường dẫn tuyệt đối | Câu thường | **Đã chặn** với `clipboard-internal`. Dán ra thông báo. Nhật ký ghi đã xác định nguồn từ tab Notepad. |
+| Tab Thông thường cung cấp đường dẫn tuyệt đối | Cùng câu thường | **Cho qua**. Dán được nguyên câu. Nhật ký ghi đã xác định nguồn từ tab Notepad. |
+| Tab chưa lưu hoặc phiên bản Notepad chỉ cung cấp tên tệp | Câu thường, rồi `123456789012` | Nhật ký ghi lý do chưa lấy được đường dẫn đầy đủ. Câu thường **Cho qua**. Chuỗi số **Đã chặn** với `clipboard-fake-12-digits`. |
+
+Nếu phiên bản Notepad trong phiên thử không cung cấp đường dẫn tuyệt đối cho tab đã lưu, ghi lại bản ứng dụng và chi tiết nhật ký. Khi đó chỉ xác nhận hành vi xét regex khi thiếu nguồn. Ca nhận diện nhãn vẫn chờ phiên bản có dữ liệu UI Automation phù hợp. Thử thêm một lượt chuyển tab ngay sau khi sao chép. Nếu agent không đối chiếu được tab hoặc vùng chọn, nhật ký phải nêu nguồn chưa xác định và quyết định phải dựa trên regex.
+
+## Đối chứng và nhật ký
+
+1. Trong trình xem Repo DLP, sao chép cùng câu thường từ hai tệp mẫu. Tệp Nội bộ bị chặn theo `clipboard-internal`, còn tệp Thông thường dán được nguyên câu.
+2. Với một ca chặn, dán hai lần sau cùng một lần sao chép. Cả hai lần phải nhận thông báo và không sinh sự kiện chặn mới. Sao chép lại nội dung mẫu một lần nữa để kiểm tra có đúng một sự kiện chặn mới.
+3. Tắt bảo vệ trên dashboard và lặp các ca chặn ở trên. Câu thường từ tệp Nội bộ và chuỗi giả 12 chữ số đều dán được nguyên vẹn. Nhật ký ghi bảo vệ đang tắt. Bật lại bảo vệ nếu còn ca thử tiếp.
+4. Đối chiếu tên ứng dụng, kết quả, ID quy tắc và lý do xác định nguồn hoặc thiếu nguồn. Kiểm tra chi tiết giải thích vì sao quy tắc nhãn hoặc regex khớp, hoặc vì sao agent cho qua mặc định. Khi bật bảo vệ, đối chiếu cả phiên bản policy trong chi tiết. Nhật ký chỉ lưu metadata gồm thời gian, ứng dụng, hành vi, kết quả, ID quy tắc khi có và chi tiết trạng thái. Kiểm tra nhật ký không chứa câu hoặc chuỗi đã sao chép, URL nguồn hay đường dẫn tệp.
+
+Ghi kết quả thực tế riêng cho từng ca. Các kết quả trong tài liệu là kỳ vọng dùng để nghiệm thu trên desktop Windows.

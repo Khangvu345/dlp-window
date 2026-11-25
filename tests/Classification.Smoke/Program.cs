@@ -17,10 +17,13 @@ var now = DateTimeOffset.UtcNow;
 
 try
 {
+    kiemTraTieuDeChrome();
     File.WriteAllText(internalPath, "Tài liệu nội bộ");
     File.WriteAllText(publicPath, "Tài liệu chia sẻ");
     File.WriteAllText(corruptPath, "Không phải DOCX");
     File.WriteAllText(secondPath, "Tài liệu chia sẻ");
+
+    await kiemTraChiTietClipboardAsync(Path.Combine(root.FullName, "clipboard"), documents.FullName, internalPath, now);
 
     string version;
     string hash;
@@ -178,11 +181,62 @@ try
             "PDF ảnh phải có trạng thái cần OCR.");
     }
 
-    Console.WriteLine("PASS — Phân loại TXT/DOCX/PDF, OCR, SHA-256, đổi policy, SQLite, đổi thư mục và bộ lọc nhật ký.");
+    Console.WriteLine("PASS — Phân loại TXT/DOCX/PDF, OCR, SHA-256, đổi policy, SQLite, đổi thư mục, quyết định clipboard và bộ lọc nhật ký.");
 }
 finally
 {
     root.Delete(recursive: true);
+}
+
+static async Task kiemTraChiTietClipboardAsync(string thuMucDuLieu, string thuMucQuet, string tepNoiBo, DateTimeOffset thoiDiem)
+{
+    const string noiDungThu = "Nội dung riêng dùng để thử clipboard";
+    const string soThu = "012345678901";
+    const string quyTacChoPhep = "clipboard-allow-priority";
+
+    await using var runtime = DlpRuntime.khoiDong(thuMucDuLieu);
+    await runtime.capNhatCauHinhAsync(new AgentSettings(thuMucQuet, true));
+    await doiDieuKienAsync(() => runtime.timTaiLieu(tepNoiBo)?.Label == "Nội bộ", "chờ nhãn nguồn để kiểm tra clipboard");
+
+    var chanTheoNhan = runtime.danhGiaChiTietClipboard(tepNoiBo, noiDungThu);
+    yeuCau(chanTheoNhan.QuyetDinh == new DlpDecision(DlpAction.Block, "clipboard-internal") &&
+        chanTheoNhan.ChiTiet.Contains("Nội bộ", StringComparison.OrdinalIgnoreCase) &&
+        chanTheoNhan.ChiTiet.Contains("khớp nhãn nguồn", StringComparison.OrdinalIgnoreCase),
+        "Clipboard phải ghi nhận nhãn nguồn khi quy tắc theo nhãn chặn sao chép.");
+
+    var chanTheoRegex = runtime.danhGiaChiTietClipboard(null, noiDungThu + " " + soThu);
+    yeuCau(chanTheoRegex.QuyetDinh == new DlpDecision(DlpAction.Block, "clipboard-fake-12-digits") &&
+        chanTheoRegex.ChiTiet.Contains("khớp regex", StringComparison.OrdinalIgnoreCase),
+        "Quy tắc regex phải chặn và giải thích được lý do kể cả khi chưa biết nguồn.");
+
+    var quaKhiChuaRoNguon = runtime.danhGiaChiTietClipboard(null, noiDungThu);
+    yeuCau(quaKhiChuaRoNguon.QuyetDinh == new DlpDecision(DlpAction.Allow, null) &&
+        quaKhiChuaRoNguon.ChiTiet.Contains("thiếu nhãn nguồn", StringComparison.OrdinalIgnoreCase),
+        "Khi không rõ nguồn và không khớp regex, phải cho qua và giải thích tình trạng nhãn.");
+
+    var policy = new PolicyDefinition(runtime.Policy.Rules.Append(
+        new PolicyRule(quyTacChoPhep, RuleScope.Clipboard, 500, RuleKind.Regex, "[0-9]{12}", null, DlpAction.Allow)).ToArray());
+    yeuCau((await runtime.capNhatChinhSachAsync(policy)).Count == 0, "Không áp được quy tắc cho phép dùng để thử ưu tiên.");
+    await doiDieuKienAsync(() => runtime.timTaiLieu(tepNoiBo)?.Label == "Nội bộ", "chờ nhãn nguồn sau khi đổi policy");
+    var quaTheoUuTien = runtime.danhGiaChiTietClipboard(tepNoiBo, noiDungThu + " " + soThu);
+    yeuCau(quaTheoUuTien.QuyetDinh == new DlpDecision(DlpAction.Allow, quyTacChoPhep) &&
+        quaTheoUuTien.ChiTiet.Contains("ưu tiên 500", StringComparison.OrdinalIgnoreCase),
+        "Quy tắc cho phép ưu tiên cao phải thắng các quy tắc chặn và xuất hiện trong giải thích.");
+
+    await runtime.capNhatCauHinhAsync(runtime.Settings with { ProtectionEnabled = false });
+    var quaKhiTat = runtime.danhGiaChiTietClipboard(tepNoiBo, noiDungThu + " " + soThu);
+    yeuCau(quaKhiTat.QuyetDinh == new DlpDecision(DlpAction.Allow, null) &&
+        quaKhiTat.ChiTiet.Contains("tắt", StringComparison.OrdinalIgnoreCase),
+        "Khi tắt bảo vệ, clipboard phải cho qua với lý do tắt bảo vệ.");
+
+    foreach (var ketQua in new[] { chanTheoNhan, chanTheoRegex, quaKhiChuaRoNguon, quaTheoUuTien, quaKhiTat })
+        runtime.ghiSuKien(new AuditEvent(thoiDiem, "Kiểm thử clipboard", AuditBehavior.Clipboard,
+            ketQua.QuyetDinh.Action, ketQua.QuyetDinh.RuleId, ketQua.ChiTiet));
+
+    var nhatKy = runtime.laySuKien(behavior: AuditBehavior.Clipboard);
+    yeuCau(nhatKy.Count == 5 && nhatKy.All(suKien => suKien.Detail is { } chiTiet &&
+        !chiTiet.Contains(noiDungThu, StringComparison.Ordinal) && !chiTiet.Contains(soThu, StringComparison.Ordinal)),
+        "Giải thích lưu trong SQLite chỉ được chứa metadata, không được lặp lại nội dung clipboard.");
 }
 
 static void yeuCau(bool condition, string message)
@@ -220,4 +274,22 @@ static void saoChepPdf(string fileName, string destination)
         ?? throw new InvalidOperationException($"Thiếu mẫu {fileName}.");
     using var file = File.Create(destination);
     sample.CopyTo(file);
+}
+
+static void kiemTraTieuDeChrome()
+{
+    static byte[] taoDuLieu(string nguon, string than = "<html></html>")
+    {
+        string tieuDe = $"Version:0.9\r\nStartHTML:0000000000\r\n{nguon}\r\n";
+        int offset = System.Text.Encoding.UTF8.GetByteCount(tieuDe);
+        return System.Text.Encoding.UTF8.GetBytes(tieuDe.Replace("0000000000", offset.ToString("D10")) + than);
+    }
+
+    var tep = "SourceURL:file:///C:/Tai%20lieu/noi-bo.txt";
+    var path = RepoDlp.Agent.Windows.NguonChrome.layDuongDan(taoDuLieu(tep));
+    yeuCau(path?.Replace('\\', '/') == "C:/Tai lieu/noi-bo.txt", "Không nhận được đường dẫn Chrome.");
+    foreach (var nguon in new[] { "SourceURL:https://example.invalid/noi-bo.txt",
+        "SourceURL:file://server/share/noi-bo.txt", tep + "\r\n" + tep, "" })
+        yeuCau(RepoDlp.Agent.Windows.NguonChrome.layDuongDan(taoDuLieu(nguon, tep)) is null,
+            "Đã dùng URL web, nguồn mơ hồ hoặc đường dẫn nằm trong nội dung HTML để tra nhãn.");
 }
